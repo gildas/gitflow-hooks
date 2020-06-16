@@ -1,0 +1,35 @@
+#! /usr/bin/env bash
+
+# Runs during git flow release finish and a tag message is given
+#
+# Positional arguments:
+# $1 Message
+# $2 Full version
+#
+# Return MESSAGE
+#
+# The following variables are available as they are exported by git-flow:
+#
+# MASTER_BRANCH - The branch defined as Master
+# DEVELOP_BRANCH - The branch defined as Develop
+#
+# @see: https://github.com/petervanderdoes/gitflow-avh/blob/develop/hooks/filter-flow-release-finish-tag-message
+MESSAGE="$1"
+VERSION=$2
+
+if [[ -z $HOOKS_DIR ]]; then
+  HOOKS_DIR="$0"
+  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
+  HOOKS_DIR=$(dirname $HOOKS_DIR)
+fi
+source "$HOOKS_DIR"/functions.sh
+
+# Remove the version prefix (v), just in case...
+VERSION_TAG=$(get_config gitflow.prefix.versiontag)
+[[ -n $VERSION_TAG ]] && VERSION=${VERSION##*$VERSION_TAG}
+VERSION_TAG_PLACEHOLDER=$(get_config gitflow.message.versiontag "%tag%")
+MESSAGE=$(echo "$MESSAGE" | sed "s/$VERSION_TAG_PLACEHOLDER/$VERSION/g")
+
+# Return the MESSAGE
+echo "${MESSAGE}"
+exit 0

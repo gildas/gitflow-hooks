@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+
+# Runs during git flow release start
+#
+# Positional arguments:
+# $1    Version
+#
+# Return VERSION - When VERSION is returned empty, git-flow will stop as the
+# version is necessary
+#
+# The following variables are available as they are exported by git-flow:
+#
+# MASTER_BRANCH - The branch defined as Master
+# DEVELOP_BRANCH - The branch defined as Develop
+#
+# @see: https://github.com/petervanderdoes/gitflow-avh/blob/develop/hooks/filter-flow-release-start-version
+VERSION=$1
+
+if [[ -z $HOOKS_DIR ]]; then
+  HOOKS_DIR="$0"
+  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
+  HOOKS_DIR=$(dirname $HOOKS_DIR)
+fi
+source "$HOOKS_DIR"/functions.sh
+
+VERSION_FILE=$(find_version_file go)
+die_on_error "$VERSION_FILE"
+
+# Remove the version prefix, just in case...
+VERSION_TAG=$(get_config gitflow.prefix.versiontag)
+[[ -n $VERSION_TAG ]] && VERSION=${VERSION##*$VERSION_TAG}
+if [[ ! $VERSION =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
+  # Default Level for releases
+  LEVEL=$VERSION
+  [[ -z $LEVEL ]] && LEVEL="minor"
+
+  VERSION=$(get_version $VERSION_FILE)
+  status=$?; [[ $status != 0 ]] && exit $status
+
+  VERSION=$(bump_version $VERSION $LEVEL)
+fi
+
+# Return the VERSION
+echo "${VERSION}"
+exit 0

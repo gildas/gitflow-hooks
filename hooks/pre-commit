@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+if [[ -z $HOOKS_DIR ]]; then
+  HOOKS_DIR="$0"
+  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
+  HOOKS_DIR=$(dirname $HOOKS_DIR)
+fi
+source "$HOOKS_DIR"/functions.sh
+
+if ! get_config_bool gitflow.branch.allow-master-commit; then
+  MASTER=$(git config --get gitflow.branch.master)
+  BRANCH=$(git symbolic-ref HEAD)
+  [[ $BRANCH == "refs/heads/$MASTER" ]] && die "Direct commits to the $MASTER branch are forbidden."
+fi
+
+# Check if there is any merge that is not resolved in the files to commit
+if ! get_config_bool gitflow.branch.allow-conflict-commit; then
+  files_to_merge=()
+  for file in $(git diff-index --name-only --diff-filter=ACM --cached HEAD --); do
+    if grep -Erls "^<<<<<<< |^>>>>>>> $" "$file" 2>&1 >/dev/null; then
+      if ! is_binary "$file"; then
+        files_to_merge=($files_to_merge $file)
+      fi
+    fi
+  done
+  [[ ${#files_to_merge[@]} > 0 ]] && die "Resolve these merges before committing! ${files_to_merge[@]}"
+fi
+
+exit 0

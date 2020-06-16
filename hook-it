@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+
+REPO=$1
+
+source hooks/functions.sh
+
+[[ ! -d $REPO ]]      && die "Folder $REPO does not exist"
+[[ ! -d $REPO/.git ]] && die "Folder $REPO is not a git repository"
+
+# 1/ make sure git flow is initialized
+if [[ -z $(git -C $REPO config gitflow.branch.master) ]]; then
+  die "git flow is not initialized in repository $REPO"
+  # TODO: This does not work yet....
+  #verbose "Initializing git flow in repository $REPO"
+  git -C $REPO flow init -d
+  git -C $REPO checkout -b dev
+  git -C $REPO branch --delete develop
+  git -C $REPO flow config set develop dev
+  #git -C $REPO flow config set versiontagprefix "v"
+  #git -C $REPO flow config set allowmultihotfix true
+  #git -C $REPO flow config set prefix.versiontag ""
+  #git -C $REPO config gitflow.path.hooks "$(readlink -f $REPO/.git/hooks)"
+fi
+HOOKS_PATH=$(git -C $REPO config gitflow.path.hooks)
+if [[ -z $HOOKS_PATH ]]; then
+  die "git flow AVH edition is needed for this to work"
+fi
+
+# 2/ configure git flow
+#git -C $REPO config gitflow.prefix.versiontag "v"
+git -C $REPO config gitflow.hotfix.finish.message "Hotfix %tag%"
+git -C $REPO config gitflow.release.finish.message "Release %tag%"
+
+# 3/ copy hooks
+[[ ! -d $HOOKS_PATH ]] && mkdir -p $HOOKS_PATH && die_on_error "Failed to create $HOOKS_PATH"
+cp hooks/* $HOOKS_PATH
+die_on_error "Failed to copy hooks to $HOOKS_PATH"

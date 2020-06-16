@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+# Runs at the end of git flow release start
+#
+# Positional arguments:
+# $1    The version (including the version prefix)
+# $2    The origin remote
+# $3    The full branch name (including the release prefix)
+# $4    The base from which this release is started
+#
+# The following variables are available as they are exported by git-flow:
+#
+# MASTER_BRANCH - The branch defined as Master
+# DEVELOP_BRANCH - The branch defined as Develop
+#
+# @see https://github.com/petervanderdoes/gitflow-avh/blob/develop/hooks/post-flow-release-start
+VERSION=$1
+ORIGIN=$2
+BRANCH=$3
+BASE=$4
+
+if [[ -z $HOOKS_DIR ]]; then
+  HOOKS_DIR="$0"
+  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
+  HOOKS_DIR=$(dirname $HOOKS_DIR)
+fi
+source "$HOOKS_DIR"/functions.sh
+
+VERSION_FILE=$(find_version_file go)
+die_on_error "$VERSION_FILE"
+
+# Remove the version prefix, if any
+VERSION_TAG=$(get_config gitflow.prefix.versiontag)
+[[ -n $VERSION_TAG ]] && VERSION=${VERSION##*$VERSION_TAG}
+
+update_version_file "$VERSION_FILE" $VERSION
+die_on_error "Failed to update $VERSION_FILE with version $VERSION"
+
+git add "$VERSION_FILE"
+die_on_error "Failed to stage $VERSION_FILE"
+git commit -m "Bumped to version $VERSION"
+die_on_error "Failed to commit new version $VERSION"
+
+exit 0
