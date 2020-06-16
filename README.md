@@ -1,4 +1,4 @@
-# Git Flow hooks for GENESYS Widget Extensions
+# Git Flow hooks for GO
 
 This repository contains git hooks for git flow to help deploy releases and hotfixes in my go repositories.
 
