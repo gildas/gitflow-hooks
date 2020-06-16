@@ -37,6 +37,7 @@ if ( ! $hooksPath ) {
 
 # 2/ Configure git flow
 if ($PSCmdlet.ShouldProcess("gitflow", "Configure Messages")) {
+  git -C $Path config gitflow.prefix.versiontag "v"
   git -C $Path config gitflow.hotfix.finish.message "Hotfix %tag%"
   git -C $Path config gitflow.release.finish.message "Release %tag%"
 }

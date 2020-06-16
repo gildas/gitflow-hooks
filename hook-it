@@ -27,7 +27,7 @@ if [[ -z $HOOKS_PATH ]]; then
 fi
 
 # 2/ configure git flow
-#git -C $REPO config gitflow.prefix.versiontag "v"
+git -C $REPO config gitflow.prefix.versiontag "v"
 git -C $REPO config gitflow.hotfix.finish.message "Hotfix %tag%"
 git -C $REPO config gitflow.release.finish.message "Release %tag%"
 
