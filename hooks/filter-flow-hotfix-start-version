@@ -40,6 +40,16 @@ if [[ ! $VERSION =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
   VERSION=$(bump_version $VERSION $LEVEL)
 fi
 
+echo "Checking for Chart"
+if [[ -f $ROOT_DIR/chart/Chart.yaml ]]; then
+  echo "Found Chart"
+  CHART_VERSION=$(grep "^version:" $ROOT_DIR/chart/Chart.yaml | sed -E "s/^version:\s+([0-9]+\.[0-9]+\.[0-9]+)/\1/")
+  echo "Current Chart Version: $CHART_VERSION"
+  CHART_VERSION=$(bump_version $CHART_VERSION $LEVEL)
+  echo "New     Chart Version: $CHART_VERSION"
+  sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]/${CHART_VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
+fi
+
 # Return the VERSION
 echo "${VERSION}"
 exit 0

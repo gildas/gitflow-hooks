@@ -40,6 +40,14 @@ if [[ ! $VERSION =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
   VERSION=$(bump_version $VERSION $LEVEL)
 fi
 
+if [[ -f $ROOT_DIR/chart/Chart.yaml ]]; then
+  CHART_VERSION=$(grep "^version:" $ROOT_DIR/chart/Chart.yaml | sed -E "s/^version:\s+([0-9]+\.[0-9]+\.[0-9]+)/\1/")
+  CHART_VERSION=$(bump_version $CHART_VERSION $LEVEL)
+  sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]/${CHART_VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
+  sed -Ei "/^appVersion:/s/[0-9]+\.[0-9]+\.[0-9]/${VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
+  git stash push --quiet
+fi
+
 # Return the VERSION
 echo "${VERSION}"
 exit 0

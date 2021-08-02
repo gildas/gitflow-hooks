@@ -36,6 +36,11 @@ VERSION_TAG=$(get_config gitflow.prefix.versiontag)
 update_version_file "$VERSION_FILE" $VERSION
 die_on_error "Failed to update $VERSION_FILE with version $VERSION"
 
+if [[ -f $ROOT_DIR/chart/Chart.yaml ]]; then
+  git stash pop --quiet
+  git add "$ROOT_DIR/chart/Chart.yaml"
+fi
+
 git add "$VERSION_FILE"
 die_on_error "Failed to stage $VERSION_FILE"
 git commit -m "Bumped to version $VERSION"
