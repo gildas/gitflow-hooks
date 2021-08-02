@@ -9,17 +9,8 @@ source hooks/functions.sh
 
 # 1/ make sure git flow is initialized
 if [[ -z $(git -C $REPO config gitflow.branch.master) ]]; then
-  die "git flow is not initialized in repository $REPO"
-  # TODO: This does not work yet....
-  #verbose "Initializing git flow in repository $REPO"
-  git -C $REPO flow init -d
-  git -C $REPO checkout -b dev
-  git -C $REPO branch --delete develop
-  git -C $REPO flow config set develop dev
-  #git -C $REPO flow config set versiontagprefix "v"
-  #git -C $REPO flow config set allowmultihotfix true
-  #git -C $REPO flow config set prefix.versiontag ""
-  #git -C $REPO config gitflow.path.hooks "$(readlink -f $REPO/.git/hooks)"
+  verbose "Initializing git flow in repository $REPO"
+  git -C $REPO flow init -d --tag v
 fi
 HOOKS_PATH=$(git -C $REPO config gitflow.path.hooks)
 if [[ -z $HOOKS_PATH ]]; then
