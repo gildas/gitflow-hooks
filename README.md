@@ -94,13 +94,14 @@ git flow release start major
 
 You do not need to repeat the version when finishing the release/hotfix.
 
+If the repository has a "chart" folder, the scripts will update the "appVersion" accordingly as well.
+They will also bump the chart version according to the same rules used for the application version.
+
 ## Hooks Update
 
 Whenever there is an update to this repository, simply re-run the `hook-it` script to update the target repositories.
 
 ## TODO
-
-I would love to be able to find a way to run "git flow init" from the script (with my own preferences) when it finds out there is only git in the target repository.
 
 The hooks should log their work and maybe display some nicer progress.
 
