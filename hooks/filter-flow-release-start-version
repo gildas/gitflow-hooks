@@ -45,11 +45,11 @@ if [[ -f $ROOT_DIR/chart/Chart.yaml ]]; then
   CHART_VERSION=$(bump_version $CHART_VERSION $LEVEL)
   status=$?
   if (( ! status )); then
-    sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]/${CHART_VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
+    sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]+/${CHART_VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
   else
     warn "Helm Chart Version was not modified"
   fi
-  sed -Ei "/^appVersion:/s/[0-9]+\.[0-9]+\.[0-9]/${VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
+  sed -Ei "/^appVersion:/s/[0-9]+\.[0-9]+\.[0-9]+/${VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
   git stash push --quiet
 fi
 

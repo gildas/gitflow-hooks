@@ -47,7 +47,7 @@ if [[ -f $ROOT_DIR/chart/Chart.yaml ]]; then
   echo "Current Chart Version: $CHART_VERSION"
   CHART_VERSION=$(bump_version $CHART_VERSION $LEVEL)
   echo "New     Chart Version: $CHART_VERSION"
-  sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]/${CHART_VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
+  sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]+/${CHART_VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
 fi
 
 # Return the VERSION
