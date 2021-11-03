@@ -1,28 +1,146 @@
 #!/usr/bin/env bash
 
-REPO=$1
+# Application variables
+REPO=
+
+# General variables
+ASSUMEYES=1
+FORCE=0
+NOOP=
+ERROR=
+VERBOSE=0
+ARGS=()
+
+GIT=${GIT:-git}
 
 source hooks/functions.sh
 
-[[ ! -d $REPO ]]      && die "Folder $REPO does not exist"
-[[ ! -d $REPO/.git ]] && die "Folder $REPO is not a git repository"
+function is_git() {
+  [[ ! -d $1 ]]      && ERROR="Folder $REPO does not exist" && return 1
+  [[ ! -d $1/.git ]] && ERROR="Folder $REPO is not a git repository" && return 2
+	return 0
+}
 
-# 1/ make sure git flow is initialized
-if [[ -z $(git -C $REPO config gitflow.branch.master) ]]; then
-  verbose "Initializing git flow in repository $REPO"
-  git -C $REPO flow init -d --tag v
-fi
-HOOKS_PATH=$(git -C $REPO config gitflow.path.hooks)
-if [[ -z $HOOKS_PATH ]]; then
-  die "git flow AVH edition is needed for this to work"
-fi
+function inject_hooks() {
+  local status
+  local hooks_path
+  local repo=$1
 
-# 2/ configure git flow
-git -C $REPO config gitflow.prefix.versiontag "v"
-git -C $REPO config gitflow.hotfix.finish.message "Hotfix %tag%"
-git -C $REPO config gitflow.release.finish.message "Release %tag%"
+  # 0/ validation
+  is_git $repo || return $?
+  verbose "Injecting git hooks into $REPO"
 
-# 3/ copy hooks
-[[ ! -d $HOOKS_PATH ]] && mkdir -p $HOOKS_PATH && die_on_error "Failed to create $HOOKS_PATH"
-cp hooks/* $HOOKS_PATH
-die_on_error "Failed to copy hooks to $HOOKS_PATH"
+  # 1/ make sure git flow is initialized
+  if [[ -z $($GIT -C $repo config gitflow.branch.master) ]]; then
+    verbose "Initializing git flow in repository $REPO"
+    $NOOP $GIT -C $repo flow init -d --tag v
+    status=$? ; (( status )) && ERROR="Error while initializing git flow in repository $REPO" && return $status
+  fi
+  hooks_path=$($GIT -C $repo config gitflow.path.hooks)
+  if [[ -z $hooks_path ]]; then
+    ERROR="git flow AVH edition is needed for this to work" && return 1
+  fi
+
+  # 2/ configure git flow
+  verbose "Configuring gitflow"
+  $NOOP $GIT -C $REPO config gitflow.prefix.versiontag      "v"
+  $NOOP $GIT -C $REPO config gitflow.hotfix.finish.message  "Hotfix %tag%"
+  $NOOP $GIT -C $REPO config gitflow.release.finish.message "Release %tag%"
+
+  # 3/ copy hooks
+  if [[ ! -d $hooks_path ]]; then
+    $NOOP mkdir -p $hooks_path
+    status=$? ; (( status )) && ERROR="Error while creating hooks folder $hooks_path" && return $status
+  fi
+  verbose "Copying hooks"
+  $NOOP cp -f hooks/* $hooks_path
+  status=$? ; (( status )) && ERROR="Error while copying hooks to $hooks_path" && return $status
+  return 0
+}
+
+function parse_args() {
+  local parse_config="${1};"
+  declare -A options
+  shift
+
+  while [[ $parse_config ]]; do
+    local option_config=${parse_config%%;*}
+    local option_names="${option_config%%=*},"
+    local option_code=${option_config#*=}
+
+    while [[ $option_names ]]; do
+      local option_name=${option_names%%,*}
+
+      if [[ ${#option_name} == 1 ]]; then
+        options["-${option_name}"]="${option_code}"
+      else
+        options["--${option_name}"]="${option_code}"
+      fi
+      option_names=${option_names#*,}
+    done
+    parse_config=${parse_config#*;}
+  done
+
+  while (( "$#" )); do
+    # Replace --parm=arg with --parm arg
+    [[ $1 == --*=* ]] && set -- "${1%%=*}" "${1#*=}" "${@:2}"
+    if [[ -n ${options[$1]} ]]; then
+      local action=${options[$1]}
+      if [[ ${action:0:1} == "*" ]]; then
+        [[ -z $2 || ${2:0:1} == '-' ]] && die "Argument for option $1 is missing"
+        eval "${action:1}=$2"
+        shift 2
+        continue
+      else
+        eval "${action}=1"
+      fi
+    else
+      case $1 in
+        # Standard options
+        --force)
+          warn "This program will force operations to be executed"
+          FORCE=1
+          ;;
+        --help|-h|-\?)
+          usage
+          exit 0
+          ;;
+        --noop|--dry_run|--dry-run)
+          warn "This program will execute in dry mode, your system will not be modified"
+          NOOP=:
+          ;;
+      --quiet)
+        VERBOSE=0
+        ;;
+      -v|--verbose)
+        VERBOSE=$((VERBOSE + 1))
+        ;;
+      -y|--yes|--assumeyes|--assume_yes|--assume-yes)
+        ASSUMEYES=1
+        ;;
+      -?*|--*=) # Invalid options
+        warn "Unknown option $1 will be ignored"
+        ;;
+      --) # Force end of options
+        shift
+        break
+        ;;
+      *)  # Positional Argument
+        ARGS+=( "$1" )
+        ;;
+      esac
+    fi
+    shift
+  done
+}
+
+function main() {
+  parse_args "r,recursive=RECURSIVE" "$@"
+
+  # Set all positional arguments back in the proper order
+  eval set -- "${ARGS[@]}"
+
+  inject_hooks "$1" || die "$ERROR"
+}
+
+main "$@"
