@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 # Application variables
+DEFAULT_HOOKS_DIR="${DEFAULT_HOOKS_DIR:-.git/hooks}"
 REPO=
 
 # General variables
@@ -28,11 +29,11 @@ function inject_hooks() {
 
   # 0/ validation
   is_git $repo || return $?
-  verbose "Injecting git hooks into $REPO"
+  verbose "Injecting git hooks into $repo"
 
   # 1/ make sure git flow is initialized
   if [[ -z $($GIT -C $repo config gitflow.branch.master) ]]; then
-    verbose "Initializing git flow in repository $REPO"
+    verbose "Initializing git flow in repository $repo"
     $NOOP $GIT -C $repo flow init -d --tag v
     status=$? ; (( status )) && ERROR="Error while initializing git flow in repository $REPO" && return $status
   fi
@@ -40,9 +41,11 @@ function inject_hooks() {
   if [[ -z $hooks_path ]]; then
     ERROR="git flow AVH edition is needed for this to work" && return 1
   fi
+  hooks_path="${repo}/${DEFAULT_HOOKS_DIR}" # Resetting the hooks folder, in case the repo was moved
 
   # 2/ configure git flow
   verbose "Configuring gitflow"
+  $NOOP $GIT -C $REPO config gitflow.path.hooks             "$hooks_path"
   $NOOP $GIT -C $REPO config gitflow.prefix.versiontag      "v"
   $NOOP $GIT -C $REPO config gitflow.hotfix.finish.message  "Hotfix %tag%"
   $NOOP $GIT -C $REPO config gitflow.release.finish.message "Release %tag%"
@@ -53,7 +56,7 @@ function inject_hooks() {
     status=$? ; (( status )) && ERROR="Error while creating hooks folder $hooks_path" && return $status
   fi
   verbose "Copying hooks"
-  $NOOP cp -f hooks/* $hooks_path
+  $NOOP cp -f hooks/* $hooks_path/
   status=$? ; (( status )) && ERROR="Error while copying hooks to $hooks_path" && return $status
   return 0
 }
