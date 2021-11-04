@@ -24,6 +24,7 @@ function is_git() {
 
 function inject_hooks() {
   local status
+  local language
   local hooks_path
   local repo=$1
 
@@ -50,14 +51,25 @@ function inject_hooks() {
   $NOOP $GIT -C $REPO config gitflow.hotfix.finish.message  "Hotfix %tag%"
   $NOOP $GIT -C $REPO config gitflow.release.finish.message "Release %tag%"
 
+  # 3/ find language
+  if [[ -e $repo/package.json]]; then
+    language="node"
+  elif [[ -e $repo/go.mod ]]; then
+    language="go"
+  else
+    ERROR="Unable to find language for $repo" && return 1
+  fi
+
   # 3/ copy hooks
   if [[ ! -d $hooks_path ]]; then
     $NOOP mkdir -p $hooks_path
     status=$? ; (( status )) && ERROR="Error while creating hooks folder $hooks_path" && return $status
   fi
   verbose "Copying hooks"
-  $NOOP cp -f hooks/* $hooks_path/
-  status=$? ; (( status )) && ERROR="Error while copying hooks to $hooks_path" && return $status
+  $NOOP cp -f hooks/common/* $hooks_path/
+  status=$? ; (( status )) && ERROR="Error while copying common hooks to $hooks_path" && return $status
+  $NOOP cp -f hooks/$language/* $hooks_path/
+  status=$? ; (( status )) && ERROR="Error while copying $language hooks to $hooks_path" && return $status
   return 0
 }
 
