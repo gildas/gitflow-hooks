@@ -92,3 +92,28 @@ function get_config() { # {{{2
   fi
   return 0
 } # 2}}}
+
+function get_chart_version() { # {{{2
+  local status
+  local file=$1
+  local version=$(grep "^version:" "$file" | sed -E "s/^version:\s+([0-9]+\.[0-9]+\.[0-9]+)/\1/")
+  status=$? ; (( status )) && ERROR="Failed to get the version from $file" && return $status
+  printf "%s" $version
+  return 0
+} # 2}}}
+
+function update_chart_version() { # {{{2
+  local file=$1
+  local version=$2
+
+  sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
+  return 0
+} # 2}}}
+
+function update_chart_appversion() { # {{{2
+  local file=$1
+  local version=$2
+
+  sed -Ei "/^appVersion:/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
+  return 0
+} # 2}}}

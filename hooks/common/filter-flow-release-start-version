@@ -36,17 +36,20 @@ if [[ ! $VERSION =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
   VERSION=$(bump_version $VERSION $BUMP)  ; die_on_error
 fi
 
-if [[ -f $ROOT_DIR/chart/Chart.yaml ]]; then
-  CHART_VERSION=$(grep "^version:" $ROOT_DIR/chart/Chart.yaml | sed -E "s/^version:\s+([0-9]+\.[0-9]+\.[0-9]+)/\1/")
-  CHART_VERSION=$(bump_version $CHART_VERSION $LEVEL)
-  status=$?
-  if (( ! status )); then
-    sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]+/${CHART_VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
-  else
-    warn "Helm Chart Version was not modified"
+if get_config_bool gitflow.branch.bump-chart true; then
+  CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
+  if [[ -f $CHART_DIR/Chart.yaml ]]; then
+    update_chart_appversion "$CHART_DIR/Chart.yaml" $VERSION
+    CHART_VERSION=$(get_chart_version "$CHART_DIR/Chart.yaml")
+    CHART_VERSION=$(bump_version      $CHART_VERSION $BUMP)
+    status=$?
+    if (( ! status )); then
+      update_chart_version "$CHART_DIR/Chart.yaml" $CHART_VERSION
+    else
+      warn "Helm Chart Version was not modified, BUMP=$BUMP"
+    fi
+    git stash push --quiet
   fi
-  sed -Ei "/^appVersion:/s/[0-9]+\.[0-9]+\.[0-9]+/${VERSION}/" "$ROOT_DIR/chart/Chart.yaml"
-  git stash push --quiet
 fi
 
 # Return the VERSION
