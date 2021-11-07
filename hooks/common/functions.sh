@@ -38,6 +38,9 @@ function normalize_version() { # {{{2
   [[ -n $version_tag ]] && printf "%s" ${version##*$version_tag} || printf "%s" $version
 } # 2}}}
 
+# bump_version bumps the given version by the given bump
+#
+# bump can be one of major, minor, patch
 function bump_version() { # {{{2
   local version=$1
   local what=$2
@@ -72,6 +75,7 @@ function is_binary() { # {{{2
 function get_config_bool() { # {{{2
   [[ -z $1 ]] && return 1
   local value=$(git config --get --bool $1)
+  [[ -z $value ]] && value=${2:-false}
   (( value == "true" ))
 } # 2}}}
 
