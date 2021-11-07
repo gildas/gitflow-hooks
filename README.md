@@ -13,7 +13,7 @@ The version of the target repository is assumed to follow the [semver](https://s
 First, you should `git clone` this project.
 
 Then, from its folder, you just run the deployment script, pointing it at the target repository:  
-```console
+```bash
 ./hook-it /path/to/repo
 ```  
 On Windows:
@@ -21,7 +21,9 @@ On Windows:
 .\hook-it.ps1 -Path /path/to/repo
 ```
 
-The script will check if the repository is valid and has git-flow already, if not it complains.
+The script will check if the repository is valid and has git-flow already, if not it will try to initialize it in the repository.
+
+The script also checks if your installed git-flow is the AVH edition, and stops if it is not the case.
 
 ## Configuration
 
@@ -30,59 +32,60 @@ By default, the hooks will prevent you from:
 - committing anything that has unresolved merge conflicts
 
 In case you do not want either of these features, you can turn them off with:
-```console
+```bash
 git config --bool gitflow.branch.allow-master-commit true
 git config --bool gitflow.branch.allow-conflict-commit true
 ```
 
-You can also change the _prefix_ used to tag the new release/hotfix (default is none):
-```console
+You can also change the _prefix_ used to tag the new release/hotfix (default is "v"):
+```bash
 git config gitflow.prefix.versiontag v
+```
+
+The scripts will also bump the Helm Chart version if it is present. You can configure the location of the chart with:  
+```bash
+git config gitflow.path.chart path/to/chart
+```
+The default location is: `chart/`
+
+You can turn off the chart feature with:
+```bash
+git config --bool gitflow.branch.bump-chart false
 ```
 
 ## Usage
 
-Now, everything can be done in the target repository folder.
+Once the hooks are initialized, everything can be done in the target repository folder.
 
 Starting a new release can be done simply:
-```console
-git flow release start
+```bash
+git flow release start xxx
 ```
 
-The hooks will bump automatically the version in the code and the README.md, provided that:
-- in the code the version is a line like this:  
-  ```js
-  var version = '1.2.3'
-  ```  
-  It does not matter which file contains the version, as long as there is only one.
-- in the README, the _download badge_ and code references to `id="my-extension"` look like this:
-   ```markdown
-   [![Download](https://path/to/badge?version=1.2.3)](https://path/to/software/1.2.3/whatever)
-   ```
-   ```html
-   <html>
-     <script id="my-extension" src="https://path/to/software/1.2.3/stuff.js"></script>
-     <script id="my-extension" src="https://path/to/software/stuff-1.2.3.js"></script>
-   </html>
-   ```
+Similarly, starting a hotfix can be done as follows:
+```bash
+git flow hotfix start xxx
+```
+
+Where `xxx` is the new version you are releasing/hotfixing, it is mandatory. If `xxx` is one of `major`, `minor`, `patch`, the scripts will _bump_ the corresponding component of the current version (from the repository code) according to the [semver](https://semver.org) recommandations.
+
+For example, if the current version is `1.2.3`:
+- `major` will update the version to 2.0.0
+- `minor` will update the version to 1.3.0
+- `patch` will update the version to 1.2.4
+
+The scripts will also commit the _bumped_ files.
+
+Depending on the language, the scripts will _bump_ the following files:
+- _version.go_ in Go (or any file that contains the line: `var VERSION = "1.2.3"`);
+- _package.json_ in Node.js;
+
+In Go, if the version file does not exist, one is created.
 
 When the release is ready, simply _finish_ it:
 ```console
 git flow release finish
 ```
-
-`Releases` will bump the _minor_ component of the [semver](https://semver.org) version, by default.
-
-`Hotfixes` work the very same way, although they modify the last number of the [semver](https://semver.org) version (i.e. the patch):
-```console
-git flow hotfix start
-# ... work, work
-git flow hotfix finish
-```
-
-Both releases and hotfixes allow overwriting the default version bump by providing a _version_ to the start command:
-- `major`, `minor`, `patch` will bump the corresponding component of the [semver](https://semver.org) version,
-- a [semver](https://semver.org) version.
 
 Examples:
 ```console
@@ -94,7 +97,7 @@ git flow release start major
 
 You do not need to repeat the version when finishing the release/hotfix.
 
-If the repository has a "chart" folder, the scripts will update the "appVersion" accordingly as well.
+As stated earlier, if the repository has a "chart" folder, the scripts will update the "appVersion" accordingly as well.
 They will also bump the chart version according to the same rules used for the application version.
 
 ## Hooks Update
