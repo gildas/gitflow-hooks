@@ -19,19 +19,19 @@ ORIGIN=$2
 BRANCH=$3
 BASE=$4
 
+# Find the folder location through potential symlinks
 if [[ -z $HOOKS_DIR ]]; then
   HOOKS_DIR="$0"
   while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
   HOOKS_DIR=$(dirname $HOOKS_DIR)
 fi
 source "$HOOKS_DIR"/functions.sh
+source "$HOOKS_DIR"/functions-lang.sh
 
-VERSION_FILE=$(find_version_file go)
+VERSION_FILE=$(find_version_file)
 die_on_error "$VERSION_FILE"
 
-# Remove the version prefix, if any
-VERSION_TAG=$(get_config gitflow.prefix.versiontag)
-[[ -n $VERSION_TAG ]] && VERSION=${VERSION##*$VERSION_TAG}
+VERSION=$(normalize_version "$VERSION")
 
 update_version_file "$VERSION_FILE" $VERSION
 die_on_error "Failed to update $VERSION_FILE with version $VERSION"

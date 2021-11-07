@@ -20,50 +20,22 @@ CROSS=$(printf ${BOLD}${RED}'✘'${DEFAULT})
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
 
-function color() { echo -e "\e38;5;$0m"; }
-function verbose() { [[ $VERBOSE > 0 ]] && echo -e "$@"; }
-function success() { echo -e "${CHECK} $@" ; }
-function warn()    { echo -e "Warning: $@"; }
-function error()   { echo -e "${CROSS} ${RED}Error: $@${DEFAULT}" >&2; }
+ERROR=
 
-function die()  { # {{{2
-  local message=$1
-  local errorlevel=$2
+function color()        { echo -e "\e38;5;$0m"; }
+function verbose()      { [[ $VERBOSE > 0 ]] && echo -e "$@"; }
+function success()      { echo -e "${CHECK} $@" ; }
+function warn()         { echo -e "${YELLOW}Warning: $@${DEFAULT}"; }
+function error()        { echo -e "${CROSS} ${RED}Error: $@${DEFAULT}" >&2; }
+function die()          { error "${1:-${ERROR:-Unknown Error}}, Error: ${2:-1}" ; exit ${2:-1} ; }
+function die_on_error() { local status=$? ; (( status )) && die "$@" $status; }
 
-  [[ -z $message    ]] && message='Died'
-  [[ -z $errorlevel ]] && errorlevel=1
-  error "$message"
-  exit $errorlevel
-} # 2}}}
+# Remove the version prefix, if any
+function normalize_version() { # {{{2
+  local version=$1
+  local version_tag=$(get_config gitflow.prefix.versiontag)
 
-function die_on_error() { # {{{2
-  local status=$?
-  local message=$1
-
-  if [[ $status != 0 ]]; then
-    die "${message}, Error: $status" $status
-  fi
-} # 2}}}
-
-function find_version_file() { # {{{2
-  local status
-  local ext=$1
-  local file=$(grep -lE "^var[ ]+VERSION[ ]*=" "$ROOT_DIR"/*.${ext})
-
-  status=$? ; [[ $status != 0 ]] && (error "Failed to grep through $ROOT_DIR" ; return $status)
-  [[ -z $file ]] && (error "Failed to find a file carrying the version" ; return 1)
-
-  printf "%s" $file
-  return 0
-} # 2}}}
-
-function get_version() { # {{{2
-  local status
-  local file=$1
-  local version=$(grep -E "^var[ ]+VERSION[ ]*=" $file | sed -E "s/^var[ ]+VERSION[ ]*=[ ]*\"([0-9]+\.[0-9]+\.[0-9]+)\"/\1/")
-  status=$? ; [[ $status != 0 ]] && (error "Failed to get the version from $file" ; return $status)
-  printf "%s" $version
-  return 0
+  [[ -n $version_tag ]] && printf "%s" ${version##*$version_tag} || printf "%s" $version
 } # 2}}}
 
 function bump_version() { # {{{2
@@ -82,17 +54,9 @@ function bump_version() { # {{{2
       printf "%s.%s.%s" ${components[0]} ${components[1]} $((components[2] + 1))
       ;;
     *)
-      error "Unsupported bump type: $what"
+      ERROR="Unsupported bump type: $what"
       return 1
   esac
-  return 0
-} # 2}}}
-
-function update_version_file() { # {{{2
-  local file=$1
-  local version=$2
-
-  sed -Ei "/^var[ ]+VERSION[ ]*=/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
   return 0
 } # 2}}}
 
@@ -108,7 +72,7 @@ function is_binary() { # {{{2
 function get_config_bool() { # {{{2
   [[ -z $1 ]] && return 1
   local value=$(git config --get --bool $1)
-  [[ $value == "true" ]]
+  (( value == "true" ))
 } # 2}}}
 
 function get_config() { # {{{2
@@ -124,4 +88,3 @@ function get_config() { # {{{2
   fi
   return 0
 } # 2}}}
-

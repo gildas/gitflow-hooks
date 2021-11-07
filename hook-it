@@ -14,7 +14,7 @@ ARGS=()
 
 GIT=${GIT:-git}
 
-source hooks/functions.sh
+source hooks/common/functions.sh
 
 function is_git() {
   [[ ! -d $1 ]]      && ERROR="Folder $REPO does not exist" && return 1
@@ -46,19 +46,20 @@ function inject_hooks() {
 
   # 2/ configure git flow
   verbose "Configuring gitflow"
-  $NOOP $GIT -C $REPO config gitflow.path.hooks             "$hooks_path"
-  $NOOP $GIT -C $REPO config gitflow.prefix.versiontag      "v"
-  $NOOP $GIT -C $REPO config gitflow.hotfix.finish.message  "Hotfix %tag%"
-  $NOOP $GIT -C $REPO config gitflow.release.finish.message "Release %tag%"
+  $NOOP $GIT -C $repo config gitflow.path.hooks             "$hooks_path"
+  $NOOP $GIT -C $repo config gitflow.prefix.versiontag      "v"
+  $NOOP $GIT -C $repo config gitflow.hotfix.finish.message  "Hotfix %tag%"
+  $NOOP $GIT -C $repo config gitflow.release.finish.message "Release %tag%"
 
   # 3/ find language
-  if [[ -e $repo/package.json]]; then
+  if [[ -e $repo/package.json ]]; then
     language="node"
   elif [[ -e $repo/go.mod ]]; then
     language="go"
   else
     ERROR="Unable to find language for $repo" && return 1
   fi
+  verbose "Language: $language"
 
   # 3/ copy hooks
   if [[ ! -d $hooks_path ]]; then
