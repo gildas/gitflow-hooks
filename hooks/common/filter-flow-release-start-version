@@ -26,7 +26,7 @@ source "$HOOKS_DIR"/functions.sh
 source "$HOOKS_DIR"/functions-lang.sh
 
 VERSION_FILE=$(find_version_file)
-die_on_error "$VERSION_FILE"
+die_on_error
 
 VERSION=$(normalize_version "$VERSION")
 BUMP="$VERSION"  # Use the version as a bump label (e.g.: git flow xx start patch)

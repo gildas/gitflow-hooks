@@ -41,7 +41,7 @@ if get_config_bool gitflow.branch.bump-chart true; then
 fi
 
 VERSION_FILE=$(find_version_file)
-die_on_error "$VERSION_FILE"
+die_on_error
 
 VERSION=$(normalize_version "$VERSION")
 
