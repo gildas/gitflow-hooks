@@ -80,8 +80,6 @@ Depending on the language, the scripts will _bump_ the following files:
 - _version.go_ in Go (or any file that contains the line: `var VERSION = "1.2.3"`);
 - _package.json_ in Node.js;
 
-In Go, if the version file does not exist, one is created.
-
 When the release is ready, simply _finish_ it:
 ```console
 git flow release finish
