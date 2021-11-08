@@ -1,6 +1,6 @@
-# Git Flow hooks for GO
+# Git Flow hooks
 
-This repository contains git hooks for git flow to help deploy releases and hotfixes in my go repositories.
+This repository contains git hooks for git flow to help deploy releases and hotfixes in my go, nodejs repositories.
 
 ## Pre-Requisites
 
