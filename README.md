@@ -53,6 +53,14 @@ You can turn off the chart feature with:
 git config --bool gitflow.branch.bump-chart false
 ```
 
+The scripts will also update the [OCI annotations](https://github.com/opencontainers/image-spec/blob/main/annotations.md labels) (`version` and `created`) in the Dockerfile if present.
+
+You can turn off the Dockerfile feature with:
+```bash
+git config --bool gitflow.branch.bump-dockerfile false
+```
+
+
 ## Usage
 
 Once the hooks are initialized, everything can be done in the target repository folder.
