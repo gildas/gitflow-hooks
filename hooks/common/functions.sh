@@ -15,7 +15,7 @@ BOLD=$(printf '\e[1m')
 UNDERLINE=$(printf '\e[4m')
 REVERSED=$(printf '\e[7m')
 
-CHECK=$(printf ${GREEN}'✔'${DEFAULT})
+CHECK=$(printf ${BOLD}${GREEN}'✔'${DEFAULT})
 CROSS=$(printf ${BOLD}${RED}'✘'${DEFAULT})
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
@@ -23,9 +23,9 @@ ROOT_DIR=$(git rev-parse --show-toplevel)
 ERROR=
 
 function color()        { echo -e "\e38;5;$0m"; }
-function verbose()      { [[ $VERBOSE > 0 ]] && echo -e "$@"; }
-function success()      { echo -e "${CHECK} $@" ; }
-function warn()         { echo -e "${YELLOW}Warning: $@${DEFAULT}"; }
+function verbose()      { [[ $VERBOSE > 0 ]] && echo -e "$@" >&2; }
+function success()      { echo -e "${CHECK} $@" >&2 ; }
+function warn()         { echo -e "${YELLOW}Warning: $@${DEFAULT}" >&2; }
 function error()        { echo -e "${CROSS} ${RED}Error: $@${DEFAULT}" >&2; }
 function die()          { error "${1:-${ERROR:-Unknown Error}}, Error: ${2:-1}" ; exit ${2:-1} ; }
 function die_on_error() { local status=$? ; (( status )) && die "$@" $status; }
