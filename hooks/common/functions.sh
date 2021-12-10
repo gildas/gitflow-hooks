@@ -120,3 +120,18 @@ function update_chart_appversion() { # {{{2
   status=$? ; (( status )) && error "Failed to update ${file##*/}, exit code: $status" || success "Updated ${file##*/}"
   return 0
 } # 2}}}
+
+function update_dockerfile_version() { # {{{2
+  local file=$1
+  local version=$2
+  local now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+  local status
+
+  verbose "Updating: ${file##*/}"
+  sed -Ei \
+    -e "/^LABEL\s+org\.opencontainers\.image\.version/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" \
+    -e "/^LABEL\s+org\.opencontainers\.image\.created/s/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z/$(date -u +%Y-%m-%dT%H:%M:%SZ)/" \
+    "$file"
+  status=$? ; (( status )) && error "Failed to update ${file##*/}, exit code: $status" || success "Updated ${file##*/}"
+} # 2}}}
+
