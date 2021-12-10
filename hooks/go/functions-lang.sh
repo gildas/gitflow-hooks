@@ -23,7 +23,10 @@ function get_version() { # {{{2
 function update_version_file() { # {{{2
   local file=$1
   local version=$2
+  local status
 
+  verbose "Updating: ${file##*/}"
   sed -Ei "/^var[ ]+VERSION[ ]*=/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
+  status=$? ; (( status )) && error "Failed to update ${file##*/}, exit code: $status" || success "Updated ${file##*/}"
   return 0
 } # 2}}}
