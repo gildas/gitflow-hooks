@@ -38,8 +38,20 @@ if ( ! $hooksPath ) {
 # 2/ Configure git flow
 if ($PSCmdlet.ShouldProcess("gitflow", "Configure Messages")) {
   git -C $Path config gitflow.prefix.versiontag "v"
+  if ( $LASTEXITCODE -ne 0 ) {
+    Write-Error "git flow Prefix Version Tag configuration failed"
+    exit 1
+  }
   git -C $Path config gitflow.hotfix.finish.message "Hotfix %tag%"
+  if ( $LASTEXITCODE -ne 0 ) {
+    Write-Error "git flow Hotfix Finish Message configuration failed"
+    exit 1
+  }
   git -C $Path config gitflow.release.finish.message "Release %tag%"
+  if ( $LASTEXITCODE -ne 0 ) {
+    Write-Error "git flow Release Finish Message configuration failed"
+    exit 1
+  }
 }
 
 # 3/ copy hooks
