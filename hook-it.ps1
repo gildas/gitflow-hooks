@@ -66,5 +66,20 @@ if (! (Test-Path $hooksPath)) {
   Write-Verbose "Creating folder $hooksPath"
   New-Item -Path $hooksPath -ItemType Directory -WhatIf:$WhatIfPreference
 }
+
+$language = ""
+if (Test-Path $Path/package.json) {
+  $language = "node"
+} elseif (Test-Path $Path/go.mod) {
+  $language = "go"
+} elseif (Test-Path $Path/pom.xml) {
+  $language = "java"
+} else {
+  Write-Error  "Could not determine language of repository $Path"
+  exit 1
+}
+Write-Verbose "$hooksPath is a $language repository"
+
 Write-Verbose "Copying hooks to folder $hooksPath"
-Copy-Item -Path ./hooks/* -Destination $hooksPath -Force -WhatIf:$WhatIfPreference
+Copy-Item -Path ./hooks/common/*    -Destination $hooksPath -Force -WhatIf:$WhatIfPreference
+Copy-Item -Path ./hooks/$language/* -Destination $hooksPath -Force -WhatIf:$WhatIfPreference
