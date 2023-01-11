@@ -26,9 +26,16 @@ if (! (Test-Path $Path/.git) ) {
 
 # 1/ make sure git flow is initialized
 if ( ! (git -C $Path config gitflow.branch.master) ) {
-  Write-Error "git flow is not initialized in repository $REPO"
-  exit 1
+  Write-Verbose "Initializing git flow in repository $Path"
+  if ($PSCmdlet.ShouldProcess("gitflow", "Initialize")) {
+    git -C $Path flow init -d --tag v
+    if ( $LASTEXITCODE -ne 0 ) {
+      Write-Error "git flow init failed"
+      exit 1
+    }
+  }
 }
+
 $hooksPath=git -C $Path config gitflow.path.hooks
 if ( ! $hooksPath ) {
   Write-Error "git flow AVH edition is needed for this to work"
