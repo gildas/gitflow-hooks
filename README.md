@@ -21,6 +21,10 @@ On Windows:
 .\hook-it.ps1 -Path /path/to/repo
 ```
 
+The Bash script supports the `-v` switch to display more information and the `-n` switch to see what would be executed. Check the script's help with `./hook-it -h`.
+
+The PowerShell script support the `-Verbose` switch to display more information and the `-WhatIf` switch to see what would be executed. Check the script's help with `Get-Help .\hook-it.ps1`.
+
 The script will check if the repository is valid and has git-flow already, if not it will try to initialize it in the repository.
 
 The script also checks if your installed git-flow is the AVH edition, and stops if it is not the case.
