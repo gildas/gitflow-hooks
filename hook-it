@@ -74,6 +74,17 @@ function inject_hooks() {
   return 0
 }
 
+function usage() {
+  echo "Usage: $0 [options] <repository>"
+  echo "Options:"
+  #echo "  -r, --recursive   Inject hooks in all subfolders"
+  echo "  -h, --help        Display this help message"
+  echo "  --noop, --dry-run Do not execute any command, just display what would be done"
+  echo "  --quiet           Do not display any message"
+  echo "  -v, --verbose     Increase verbosity"
+  echo "  -y, --yes         Assume yes to all questions"
+}
+
 function parse_args() {
   local parse_config="${1};"
   declare -A options
