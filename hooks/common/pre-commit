@@ -26,4 +26,17 @@ if ! get_config_bool gitflow.branch.allow-conflict-commit; then
   [[ ${#files_to_merge[@]} > 0 ]] && die "Resolve these merges before committing! ${files_to_merge[@]}"
 fi
 
+STAGED_GO_FILES=$(git diff --cached --name-only | grep "\.go$")
+[[ -z $STAGED_GO_FILES ]] && exit 0
+
+GOFMT=$(command -v gofmt)
+if (( $? )); then
+  GOFMT=$GOROOT/bin/gofmt
+  [[ ! -e $GOFMT ]] && die "The gofmt tool is missing, aborting"
+fi
+
+for file in $STAGED_GO_FILES ; do
+  $GOFMT -w $file
+done
+
 exit 0
