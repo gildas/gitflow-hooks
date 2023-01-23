@@ -51,6 +51,14 @@ function inject_hooks() {
   $NOOP $GIT -C $repo config gitflow.hotfix.finish.message  "Hotfix %tag%"
   $NOOP $GIT -C $repo config gitflow.release.finish.message "Release %tag%"
 
+  if [[ -z $($GIT -C $repo config --get gitflow.branch.allow-master-commit) ]]; then
+    $NOOP $GIT -C $repo config gitflow.branch.allow-master-commit false
+  fi
+
+  if [[ -z $($GIT -C $repo config --get gitflow.branch.allow-conflict-commit) ]]; then
+    $NOOP $GIT -C $repo config gitflow.branch.allow-conflict-commit false
+  fi
+
   # 3/ find language
   if [[ -e $repo/package.json ]]; then
     language="node"
