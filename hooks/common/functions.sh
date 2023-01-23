@@ -76,7 +76,7 @@ function get_config_bool() { # {{{2
   [[ -z $1 ]] && return 1
   local value=$(git config --get --bool $1)
   [[ -z $value ]] && value=${2:-false}
-  (( value == "true" ))
+  [[ $value == "true" ]] && return 0 || return 1
 } # 2}}}
 
 function get_config() { # {{{2
