@@ -59,14 +59,16 @@ if ($PSCmdlet.ShouldProcess("gitflow", "Configure Messages")) {
     Write-Error "git flow Release Finish Message configuration failed"
     exit 1
   }
-  if ( (git -C $Path config --get gitflow.branch.allow-master-commit) == "" ) {
+  $value = (git -C $Path config --get gitflow.branch.allow-master-commit)
+  if ( $value -eq "" ) {
     git -C $Path config --bool gitflow.branch.allow-master-commit false
     if ( $LASTEXITCODE -ne 0 ) {
       Write-Error "git flow Allow Master Commit configuration failed"
       exit 1
     }
   }
-  if ( (git -C $Path config --get gitflow.branch.allow-config-commit) == "" ) {
+  $value = (git -C $Path config --get gitflow.branch.allow-config-commit)
+  if ( $value -eq "" ) {
     git -C $Path config --bool gitflow.branch.allow-config-commit false
     if ( $LASTEXITCODE -ne 0 ) {
       Write-Error "git flow Allow Conflict Commit configuration failed"
