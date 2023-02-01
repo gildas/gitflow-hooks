@@ -53,7 +53,7 @@ if get_config_bool gitflow.branch.bump-chart true; then
     else
       warn "Helm Chart Version was not modified, BUMP=$BUMP"
     fi
-    git stash push --quiet
+    git stash push --message "chart" --quiet "$CHART_DIR/Chart.yaml"
   fi
 fi
 

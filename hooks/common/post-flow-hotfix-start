@@ -31,12 +31,15 @@ source "$HOOKS_DIR"/functions-lang.sh
 if get_config_bool gitflow.branch.bump-chart true; then
   CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
   if [[ -f $CHART_DIR/Chart.yaml ]]; then
-    git stash pop --quiet
-    git add "$CHART_DIR/Chart.yaml"
-    die_on_error "Failed to stage $CHART_DIR/Chart.yaml"
-    CHART_VERSION=$(get_chart_version "$CHART_DIR/Chart.yaml")
-    git commit -m "Bumped Chart to version $CHART_VERSION" "$CHART_DIR/Chart.yaml"
-    die_on_error "Failed to commit new Chart version $CHART_VERSION"
+    stash=$(git stash list | awk '/chart/{gsub(":","",$1); print $1}')
+    if [[ -n $stash ]]; then
+      git stash pop --quiet
+      git add "$CHART_DIR/Chart.yaml"
+      die_on_error "Failed to stage $CHART_DIR/Chart.yaml"
+      CHART_VERSION=$(get_chart_version "$CHART_DIR/Chart.yaml")
+      git commit -m "Bumped Chart to version $CHART_VERSION" "$CHART_DIR/Chart.yaml"
+      die_on_error "Failed to commit new Chart version $CHART_VERSION"
+    fi
   fi
 fi
 
