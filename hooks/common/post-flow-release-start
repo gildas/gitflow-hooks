@@ -43,6 +43,19 @@ if get_config_bool gitflow.branch.bump-chart true; then
   fi
 fi
 
+if get_config_bool gitflow.branch.bump-appveyor true; then
+  if [[ -f appveyor.yml ]]; then
+    stash=$(git stash list | awk '/appveyor/{gsub(":","",$1); print $1}')
+    if [[ -n $stash ]]; then
+      git stash pop --quiet $stash
+      git add appveyor.yml
+      die_on_error "Failed to stage appveyor.yml"
+      git commit -m "Updated Appveyor version" appveyor.yml
+      die_on_error "Failed to commit new Appveyor version $VERSION"
+    fi
+  fi
+fi
+
 VERSION_FILE=$(find_version_file)
 die_on_error "$VERSION_FILE"
 

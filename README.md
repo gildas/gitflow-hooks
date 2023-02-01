@@ -64,6 +64,13 @@ You can turn off the Dockerfile feature with:
 git config --bool gitflow.branch.bump-dockerfile false
 ```
 
+The scripts will also bump the [Appveyor](https://www.appveyor.com) version if it is present.
+
+You can turn off the Appveyor feature with:
+```bash
+git config --bool gitflow.branch.bump-appveyor false
+```
+
 
 ## Usage
 

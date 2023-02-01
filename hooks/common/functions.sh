@@ -136,3 +136,15 @@ function update_dockerfile_version() { # {{{2
   status=$? ; (( status )) && error "Failed to update ${file##*/}, exit code: $status" || success "Updated ${file##*/}"
 } # 2}}}
 
+function update_appveyor_version() { # {{{2
+  local file=$1
+  local version=$2
+  local status
+
+  verbose "Updating: ${file##*/}"
+  sed -Ei \
+    -e "/^version:/s/.*/version: ${version}+{build}/" \
+    "$file"
+  status=$? ; (( status )) && error "Failed to update ${file##*/}, exit code: $status" || success "Updated ${file##*/}"
+} # 2}}}
+
