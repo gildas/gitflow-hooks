@@ -41,9 +41,13 @@ if get_config_bool gitflow.branch.bump-chart true; then
   CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
   if [[ -f $CHART_DIR/Chart.yaml ]]; then
     update_chart_appversion "$CHART_DIR/Chart.yaml" $VERSION
-    CHART_VERSION=$(get_chart_version "$CHART_DIR/Chart.yaml")
-    CHART_VERSION=$(bump_version      $CHART_VERSION $BUMP)
-    status=$?
+    if [[ ! $BUMP =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
+      CHART_VERSION=$(get_chart_version "$CHART_DIR/Chart.yaml")
+      CHART_VERSION=$(bump_version      $CHART_VERSION $BUMP)
+      status=$?
+    else
+      CHART_VERSION=$BUMP
+    fi
     if (( ! status )); then
       update_chart_version "$CHART_DIR/Chart.yaml" $CHART_VERSION
     else
