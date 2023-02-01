@@ -58,6 +58,7 @@ function bump_version() { # {{{2
       ;;
     *)
       ERROR="Unsupported bump type: $what"
+      error "Unsupported bump type: $what"
       return 1
   esac
   return 0
