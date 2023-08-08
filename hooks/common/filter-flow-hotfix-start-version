@@ -36,6 +36,7 @@ if [[ ! $BUMP =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
   VERSION=$(get_version  "$VERSION_FILE") ; die_on_error
   VERSION=$(bump_version $VERSION $BUMP)  ; die_on_error
 fi
+verbose "New Version: $VERSION"
 
 if get_config_bool gitflow.branch.bump-appveyor true; then
   if [[ -f appveyor.yml ]]; then
