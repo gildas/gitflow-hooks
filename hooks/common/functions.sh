@@ -107,6 +107,7 @@ function update_chart_version() { # {{{2
   local file=$1
   local version=$2
 
+  verbose "Updating Chart: ${file##*/} to ${version}"
   sed -Ei "/^version:/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
   return 0
 } # 2}}}
@@ -116,7 +117,7 @@ function update_chart_appversion() { # {{{2
   local version=$2
   local status
 
-  verbose "Updating: ${file##*/}"
+  verbose "Updating App Version: ${file##*/} to ${version}"
   sed -Ei "/^appVersion:/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
   status=$? ; (( status )) && error "Failed to update ${file##*/}, exit code: $status" || success "Updated ${file##*/}"
   return 0
@@ -128,7 +129,7 @@ function update_dockerfile_version() { # {{{2
   local now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   local status
 
-  verbose "Updating: ${file##*/}"
+  verbose "Updating: ${file##*/} to ${version}"
   sed -Ei \
     -e "/^LABEL\s+org\.opencontainers\.image\.version/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" \
     -e "/^LABEL\s+org\.opencontainers\.image\.created/s/[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z/$(date -u +%Y-%m-%dT%H:%M:%SZ)/" \
@@ -141,7 +142,7 @@ function update_appveyor_version() { # {{{2
   local version=$2
   local status
 
-  verbose "Updating: ${file##*/}"
+  verbose "Updating: ${file##*/} to ${version}"
   sed -Ei \
     -e "/^version:/s/.*/version: ${version}+{build}/" \
     "$file"
