@@ -97,7 +97,7 @@ function get_config() { # {{{2
 function get_chart_version() { # {{{2
   local status
   local file=$1
-  local version=$(grep "^version:" "$file" | sed -E "s/^version:\s+([0-9]+\.[0-9]+\.[0-9]+)/\1/")
+  local version=$(grep "^version:" "$file" | sed -E "s/^version:[ ]+([0-9]+\.[0-9]+\.[0-9]+)/\1/")
   status=$? ; (( status )) && ERROR="Failed to get the version from $file" && return $status
   printf "%s" $version
   return 0
