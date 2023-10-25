@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+
+# TODO: Add an option to create a PR.
+
+branch=$(git rev-parse --abbrev-ref HEAD)
+base_branch=$(git config --get gitflow.branch.develop)
+origin=$(git config --get remote.origin.url)
+userRepo=$(git remote -v | grep grep 'origin\s.*fetch' | awk '{print $2}' | grep "github.com" | cut -d':' -f2 | rev | cut -c5- | rev)
+
+if [[ $origin =~ ^git@github\.com ]]; then
+  repo=$(echo $origin | sed -e 's/^git@github\.com://' -e 's/\.git$//')
+  if command -v gh &> /dev/null; then
+    gh pr create \
+      --title "Merge feature $branch" \
+      --body  "Feature $branch. Do not delete the feature branch after the merge." \
+      --base  $base_branch \
+      --repo  $repo
+  # TODO: use --web optionally so the user can edit the PR?!?
+  else
+    echo ""
+    echo "Create PR at: https://github.com/$userRepo/compare/$branch?expand=1"
+    echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
+    echo ""
+  fi
+else
+  echo "Create a PR manually at $origin"
+  echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
+fi
+
