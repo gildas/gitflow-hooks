@@ -26,7 +26,7 @@ function update_version_file() { # {{{2
   local status
 
   verbose "Updating: ${file##*/} to ${version}"
-  sed -Ei .bak "/^var[ ]+VERSION[ ]*=/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
+  sed -Ei.bak "/^var[ ]+VERSION[ ]*=/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
   status=$?
   if (( status )); then
     error "Failed to update ${file##*/}, exit code: $status"
