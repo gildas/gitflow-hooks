@@ -5,7 +5,6 @@
 branch=$(git rev-parse --abbrev-ref HEAD)
 base_branch=$(git config --get gitflow.branch.master)
 origin=$(git config --get remote.origin.url)
-userRepo=$(git remote -v | grep grep 'origin\s.*fetch' | awk '{print $2}' | grep "github.com" | cut -d':' -f2 | rev | cut -c5- | rev)
 
 if [[ $origin =~ ^git@github\.com ]]; then
   repo=$(echo $origin | sed -e 's/^git@github\.com://' -e 's/\.git$//')
@@ -18,7 +17,7 @@ if [[ $origin =~ ^git@github\.com ]]; then
   # TODO: use --web optionally so the user can edit the PR?!?
   else
     echo ""
-    echo "Create PR at: https://github.com/$userRepo/compare/$branch?expand=1"
+    echo "Create PR at: https://github.com/$repo/compare/$branch?expand=1"
     echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the release is finished."
     echo ""
   fi
