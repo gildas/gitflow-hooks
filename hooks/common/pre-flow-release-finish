@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+
+# Runs before of git flow release finish
+#
+# Positional arguments:
+# $1    The version (including the version prefix)
+# $2    The origin remote
+# $3    The full branch name (including the release prefix)
+#
+# The following variables are available as they are exported by git-flow:
+#
+# MASTER_BRANCH - The branch defined as Master
+# DEVELOP_BRANCH - The branch defined as Develop
+#
+# @see https://github.com/petervanderdoes/gitflow-avh/blob/develop/hooks/pre-flow-release-finish
+VERSION=$1
+ORIGIN=$2
+BRANCH=$3
+
+# Find the folder location through potential symlinks
+if [[ -z $HOOKS_DIR ]]; then
+  HOOKS_DIR="$0"
+  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
+  HOOKS_DIR=$(dirname $HOOKS_DIR)
+fi
+source "$HOOKS_DIR"/functions.sh
+
+if ! get_config_bool gitflow.use-pull-request true; then
+  verbose "Pull requests are disabled. Release can be finished."
+  exit 0
+fi
+
+# We should stop the finish if there is still a PR that is not merged
+if [[ $ORIGIN =~ ^git@github\.com ]]; then
+  if command -v gh &> /dev/null; then
+    PR_STATE=$(gh pr view $BRANCH --json state --jq .state)
+    die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
+    if [[ $PR_STATE != MERGED ]]; then
+      die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
+    fi
+    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    die "Failed to fetch $MASTER_BRANCH from $ORIGIN"
+  else
+    die "gh is not available, so I cannot check pull request states"
+  fi
+else
+  die "This is not a github repository, so I cannot check pull request states"
+fi
+
+exit 0
