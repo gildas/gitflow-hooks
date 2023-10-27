@@ -1,28 +1,53 @@
 #!/usr/bin/env bash
+#
+# Runs at the end of git flow release publish
+#
+# Positional arguments:
+# $1    The friendly name of the branch
+# $2    The origin remote
+# $3    The full branch name (including the release prefix)
+#
+# The following variables are available as they are exported by git-flow:
+#
+# MASTER_BRANCH - The branch defined as Master
+# DEVELOP_BRANCH - The branch defined as Develop
+#
+# @see https://github.com/petervanderdoes/gitflow-avh/blob/develop/hooks/post-flow-release-publish
+VERSION=$1
+ORIGIN=$2
+BRANCH=$3
 
-# TODO: Add an option to create a PR.
+# Find the folder location through potential symlinks
+if [[ -z $HOOKS_DIR ]]; then
+  HOOKS_DIR="$0"
+  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
+  HOOKS_DIR=$(dirname $HOOKS_DIR)
+fi
+source "$HOOKS_DIR"/functions.sh
 
-branch=$(git rev-parse --abbrev-ref HEAD)
-base_branch=$(git config --get gitflow.branch.master)
-origin=$(git config --get remote.origin.url)
+if ! get_config_bool gitflow.use-pull-request true; then
+  verbose "Pull requests are disabled. Skipping PR creation."
+  exit 0
+fi
 
-if [[ $origin =~ ^git@github\.com ]]; then
-  repo=$(echo $origin | sed -e 's/^git@github\.com://' -e 's/\.git$//')
+if [[ $ORIGIN =~ ^git@github\.com ]]; then
+  repo=$(echo $ORIGIN | sed -e 's/^git@github\.com://' -e 's/\.git$//')
   if command -v gh &> /dev/null; then
     gh pr create \
-      --title "Merge release $branch" \
-      --body  "Release $branch. Do not delete the release branch after the merge." \
-      --base  $base_branch \
+      --title "Merge release $BRANCH" \
+      --body  "Release $BRANCH. Do not delete the release branch after the merge." \
+      --base  $MASTER_BRANCH \
       --repo  $repo
   # TODO: use --web optionally so the user can edit the PR?!?
   else
     echo ""
-    echo "Create PR at: https://github.com/$repo/compare/$branch?expand=1"
+    echo "Create PR at: https://github.com/$repo/compare/$BRANCH?expand=1"
     echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the release is finished."
     echo ""
   fi
 else
-  echo "Create a PR manually at $origin"
+  echo "Create a PR manually at $ORIGIN"
   echo "Do not delete the release branch after the PR is merged. It will be deleted automatically when the release is finished."
 fi
 
+exit 0
