@@ -34,8 +34,8 @@ if [[ $ORIGIN =~ ^git@github\.com ]]; then
   repo=$(echo $ORIGIN | sed -e 's/^git@github\.com://' -e 's/\.git$//')
   if command -v gh &> /dev/null; then
     gh pr create \
-      --title "Merge feature $BRANCH" \
-      --body  "Feature $BRANCH. Do not delete the feature branch after the merge." \
+      --title "Merge $BRANCH" \
+      --body  "Feature $VERSION. Do not delete the feature branch after the merge." \
       --base  $DEVELOP_BRANCH \
       --repo  $repo
   # TODO: use --web optionally so the user can edit the PR?!?

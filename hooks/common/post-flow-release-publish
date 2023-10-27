@@ -34,8 +34,8 @@ if [[ $ORIGIN =~ ^git@github\.com ]]; then
   repo=$(echo $ORIGIN | sed -e 's/^git@github\.com://' -e 's/\.git$//')
   if command -v gh &> /dev/null; then
     gh pr create \
-      --title "Merge release $BRANCH" \
-      --body  "Release $BRANCH. Do not delete the release branch after the merge." \
+      --title "Merge $BRANCH" \
+      --body  "Release $VERSION. Do not delete the release branch after the merge." \
       --base  $MASTER_BRANCH \
       --repo  $repo
   # TODO: use --web optionally so the user can edit the PR?!?
