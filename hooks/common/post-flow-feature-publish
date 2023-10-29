@@ -46,6 +46,21 @@ if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
     echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
     echo ""
   fi
+elif [[ $ORIGIN_URL =~ ^https://gitbuh.com ]]; then
+  repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/github\.com\///' -e 's/\.git$//')
+  if command -v gh &> /dev/null; then
+    gh pr create \
+      --title "Merge $BRANCH" \
+      --body  "Feature $VERSION. Do not delete the feature branch after the merge." \
+      --base  $DEVELOP_BRANCH \
+      --repo  $repo
+  # TODO: use --web optionally so the user can edit the PR?!?
+  else
+    echo ""
+    echo "Create PR at: https://github.com/$repo/compare/$BRANCH?expand=1"
+    echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
+    echo ""
+  fi
 else
   echo "Create a PR manually at $ORIGIN_URL"
   echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
