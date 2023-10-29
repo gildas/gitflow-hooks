@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+# Runs at the end of git flow feature start
+#
+# Positional arguments:
+# $1    The friendly name of the branch
+# $2    The origin remote
+# $3    The full branch name (including the feature prefix)
+# $4    The base from which this feature is started
+#
+# The following variables are available as they are exported by git-flow:
+#
+# MASTER_BRANCH - The branch defined as Master
+# DEVELOP_BRANCH - The branch defined as Develop
+#
+# @see https://github.com/petervanderdoes/gitflow-avh/blob/develop/hooks/post-flow-feature-start
+NAME=$1
+ORIGIN=$2
+BRANCH=$3
+BASE=$4
+
+# Find the folder location through potential symlinks
+if [[ -z $HOOKS_DIR ]]; then
+  HOOKS_DIR="$0"
+  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
+  HOOKS_DIR=$(dirname $HOOKS_DIR)
+fi
+source "$HOOKS_DIR"/functions.sh
+
+if get_config_bool gitflow.use-pull-request true; then
+  echo "This repository uses Pull Requests."
+  echo ""
+  echo "To start a pull request, publish your feature:"
+  echo ""
+  echo "  git flow feature publish $BRANCH"
+  echo ""
+  echo "If you want to simply push the feature to the $ORIGIN, just push it:"
+  echo ""
+  echo "  git push -u $ORIGIN $BRANCH"
+  echo ""
+  echo "Once the Pull Request has been merged, simply finish the feature."
+fi
+
+exit 0

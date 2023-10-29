@@ -69,4 +69,18 @@ die_on_error "Failed to stage $VERSION_FILE"
 git commit -m "Bumped to version $VERSION"
 die_on_error "Failed to commit new version $VERSION"
 
+if get_config_bool gitflow.use-pull-request true; then
+  echo "This repository uses Pull Requests."
+  echo ""
+  echo "To start a pull request, publish your hotfix:"
+  echo ""
+  echo "  git flow hotfix release $BRANCH"
+  echo ""
+  echo "If you want to simply push the hotfix to the $ORIGIN, just push it:"
+  echo ""
+  echo "  git push -u $ORIGIN $BRANCH"
+  echo ""
+  echo "Once the Pull Request has been merged, simply finish the hotfix."
+fi
+
 exit 0
