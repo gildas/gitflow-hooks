@@ -16,6 +16,7 @@
 VERSION=$1
 ORIGIN=$2
 BRANCH=$3
+ORIGIN_URL=$(git config remote.${ORIGIN}.url)
 
 # Find the folder location through potential symlinks
 if [[ -z $HOOKS_DIR ]]; then
@@ -30,8 +31,8 @@ if ! get_config_bool gitflow.use-pull-request true; then
   exit 0
 fi
 
-if [[ $ORIGIN =~ ^git@github\.com ]]; then
-  repo=$(echo $ORIGIN | sed -e 's/^git@github\.com://' -e 's/\.git$//')
+if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
+  repo=$(echo $ORIGIN_URL | sed -e 's/^git@github\.com://' -e 's/\.git$//')
   if command -v gh &> /dev/null; then
     gh pr create \
       --title "Merge $BRANCH" \
@@ -46,7 +47,7 @@ if [[ $ORIGIN =~ ^git@github\.com ]]; then
     echo ""
   fi
 else
-  echo "Create a PR manually at $ORIGIN"
+  echo "Create a PR manually at $ORIGIN_URL"
   echo "Do not delete the release branch after the PR is merged. It will be deleted automatically when the release is finished."
 fi
 

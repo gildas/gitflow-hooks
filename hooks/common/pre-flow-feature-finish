@@ -16,6 +16,7 @@
 VERSION=$1
 ORIGIN=$2
 BRANCH=$3
+ORIGIN_URL=$(git config remote.${ORIGIN}.url)
 
 # Find the folder location through potential symlinks
 if [[ -z $HOOKS_DIR ]]; then
@@ -31,20 +32,21 @@ if ! get_config_bool gitflow.use-pull-request true; then
 fi
 
 # We should stop the finish if there is still a PR that is not merged
-if [[ $ORIGIN =~ ^git@github\.com ]]; then
+if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
   if command -v gh &> /dev/null; then
     PR_STATE=$(gh pr view $BRANCH --json state --jq .state)
     die_on_error "There is no Pull Request for branch $BRANCH, please publish this feature before finishing it."
     if [[ $PR_STATE != MERGED ]]; then
       die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
     fi
+    verbose "Fetching ${DEVELOP_BRANCH} from $ORIGIN"
     git fetch $ORIGIN ${DEVELOP_BRANCH}:${DEVELOP_BRANCH}
-    die "Failed to fetch $DEVELOP_BRANCH from $ORIGIN"
+    die_on_error "Failed to fetch $DEVELOP_BRANCH from $ORIGIN"
   else
-    die "gh is not available, so I cannot check pull request states"
+    die "gh is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
   fi
 else
-  die "This is not a github repository, so I cannot check pull request states"
+  die "$ORIGIN ($ORIGIN_URL) is not a github repository, so I cannot check pull request states"
 fi
 
 exit 0
