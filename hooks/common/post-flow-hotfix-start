@@ -64,6 +64,16 @@ VERSION=$(normalize_version "$VERSION")
 update_version_file "$VERSION_FILE" $VERSION
 die_on_error "Failed to update $VERSION_FILE with version $VERSION"
 
+if get_config_bool gitflow.bump-dockerfile true; then
+  DOCKERFILE=$(get_config gitflow.path.dockerfile "$ROOT_DIR/Dockerfile")
+  if [[ -f $DOCKERFILE ]]; then
+    update_dockerfile_version "$DOCKERFILE" $VERSION
+    die_on_error "Failed to update Dockerfile ($DOCKERFILE) with version $VERSION"
+    git add Dockerfile
+    die_on_error "Failed to stage Dockerfile"
+  fi
+fi
+
 git add "$VERSION_FILE"
 die_on_error "Failed to stage $VERSION_FILE"
 git commit -m "Bumped to version $VERSION"
