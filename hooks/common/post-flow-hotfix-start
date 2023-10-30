@@ -28,7 +28,7 @@ fi
 source "$HOOKS_DIR"/functions.sh
 source "$HOOKS_DIR"/functions-lang.sh
 
-if get_config_bool gitflow.branch.bump-chart true; then
+if get_config_bool gitflow.bump-chart true; then
   CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
   if [[ -f $CHART_DIR/Chart.yaml ]]; then
     stash=$(git stash list | awk '/chart/{gsub(":","",$1); print $1}')
@@ -43,7 +43,7 @@ if get_config_bool gitflow.branch.bump-chart true; then
   fi
 fi
 
-if get_config_bool gitflow.branch.bump-appveyor true; then
+if get_config_bool gitflow.bump-appveyor true; then
   if [[ -f appveyor.yml ]]; then
     stash=$(git stash list | awk '/appveyor/{gsub(":","",$1); print $1}')
     if [[ -n $stash ]]; then

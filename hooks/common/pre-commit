@@ -7,14 +7,14 @@ if [[ -z $HOOKS_DIR ]]; then
 fi
 source "$HOOKS_DIR"/functions.sh
 
-if ! get_config_bool gitflow.branch.allow-master-commit; then
+if ! get_config_bool gitflow.allow-master-commit; then
   MASTER=$(git config --get gitflow.branch.master)
   BRANCH=$(git symbolic-ref HEAD)
   [[ $BRANCH == "refs/heads/$MASTER" ]] && die "Direct commits to the $MASTER branch are forbidden"
 fi
 
 # Check if there is any merge that is not resolved in the files to commit
-if ! get_config_bool gitflow.branch.allow-conflict-commit; then
+if ! get_config_bool gitflow.allow-conflict-commit; then
   files_to_merge=()
   for file in $(git diff-index --name-only --diff-filter=ACM --cached HEAD --); do
     if grep -Erls "^<<<<<<< |^>>>>>>> $" "$file" 2>&1 >/dev/null; then

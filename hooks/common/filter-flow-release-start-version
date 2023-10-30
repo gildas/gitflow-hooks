@@ -38,14 +38,14 @@ if [[ ! $BUMP =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
 fi
 verbose "New Version: $VERSION"
 
-if get_config_bool gitflow.branch.bump-appveyor true; then
+if get_config_bool gitflow.bump-appveyor true; then
   if [[ -f appveyor.yml ]]; then
     update_appveyor_version appveyor.yml $VERSION
     git stash push --message "appveyor" --quiet appveyor.yml
   fi
 fi
 
-if get_config_bool gitflow.branch.bump-chart true; then
+if get_config_bool gitflow.bump-chart true; then
   CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
   if [[ -f $CHART_DIR/Chart.yaml ]]; then
     update_chart_appversion "$CHART_DIR/Chart.yaml" $VERSION

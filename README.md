@@ -37,8 +37,8 @@ By default, the hooks will prevent you from:
 
 In case you do not want either of these features, you can turn them off with:
 ```bash
-git config --bool gitflow.branch.allow-master-commit true
-git config --bool gitflow.branch.allow-conflict-commit true
+git config --bool gitflow.allow-master-commit true
+git config --bool gitflow.allow-conflict-commit true
 ```
 
 You can also change the _prefix_ used to tag the new release/hotfix (default is "v"):
@@ -54,14 +54,14 @@ The default location is: `chart/`
 
 You can turn off the chart feature with:
 ```bash
-git config --bool gitflow.branch.bump-chart false
+git config --bool gitflow.bump-chart false
 ```
 
 The scripts will also update the [OCI annotations](https://github.com/opencontainers/image-spec/blob/main/annotations.md) (`version` and `created`) in the Dockerfile if present.
 
 You can turn off the Dockerfile feature with:
 ```bash
-git config --bool gitflow.branch.bump-dockerfile false
+git config --bool gitflow.bump-dockerfile false
 ```
 
 You can also change the default name and location of the Dockerfile:
@@ -73,7 +73,7 @@ The scripts will also bump the [Appveyor](https://www.appveyor.com) version if i
 
 You can turn off the Appveyor feature with:
 ```bash
-git config --bool gitflow.branch.bump-appveyor false
+git config --bool gitflow.bump-appveyor false
 ```
 
 
