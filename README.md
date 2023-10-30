@@ -34,17 +34,21 @@ The script also checks if your installed git-flow is the AVH edition, and stops 
 By default, the hooks will prevent you from:
 - committing anything to the master branch
 - committing anything that has unresolved merge conflicts
+- force Pull Request usage
 
 In case you do not want either of these features, you can turn them off with:
 ```bash
 git config --bool gitflow.allow-master-commit true
 git config --bool gitflow.allow-conflict-commit true
+git config --bool gitflow.use-pull-request false
 ```
 
 You can also change the _prefix_ used to tag the new release/hotfix (default is "v"):
 ```bash
 git config gitflow.prefix.versiontag v
 ```
+
+When using Pull Requests, the scripts will rely on the [Github's CLI (gh)](https://cli.github.com) and will fail if the tool is not present.
 
 The scripts will also bump the Helm Chart version if it is present. You can configure the location of the chart with:  
 ```bash
@@ -104,10 +108,20 @@ Depending on the language, the scripts will _bump_ the following files:
 - _version.go_ in Go (or any file that contains the line: `var VERSION = "1.2.3"`);
 - _package.json_ in Node.js;
 
+If you use Pull Requests, you should `publish` the release once to create a Pull Request:
+
+```console
+git flow release publish
+```
+
+As indicated in the command line result instruction, while merging the Pull Request, the approver should not delete the release branch.
+
 When the release is ready, simply _finish_ it:
 ```console
 git flow release finish
 ```
+
+**Note:** The `finish` process will fail if there is no Pull Request (asuming you use the Pull Request usage feature) or the current Pull Request has not been properly merged.
 
 Examples:
 ```console
@@ -117,7 +131,7 @@ git flow release start 12.3.4
 git flow release start major
 ```
 
-You do not need to repeat the version when finishing the release/hotfix.
+You do not need to repeat the version when finishing the release/hotfix if you are on their branch.
 
 As stated earlier, if the repository has a "chart" folder, the scripts will update the "appVersion" accordingly as well.
 They will also bump the chart version according to the same rules used for the application version.
