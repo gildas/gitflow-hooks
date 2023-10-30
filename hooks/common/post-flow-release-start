@@ -65,9 +65,10 @@ update_version_file "$VERSION_FILE" $VERSION
 die_on_error "Failed to update $VERSION_FILE with version $VERSION"
 
 if get_config_bool gitflow.branch.bump-dockerfile true; then
-  if [[ -f $ROOT_DIR/Dockerfile ]]; then
-    update_dockerfile_version "$ROOT_DIR/Dockerfile" $VERSION
-    die_on_error "Failed to update Dockerfile with version $VERSION"
+  DOCKERFILE=$(get_config gitflow.path.dockerfile "$ROOT_DIR/Dockerfile")
+  if [[ -f $DOCKERFILE ]]; then
+    update_dockerfile_version "$DOCKERFILE" $VERSION
+    die_on_error "Failed to update Dockerfile ($DOCKERFILE) with version $VERSION"
     git add Dockerfile
     die_on_error "Failed to stage Dockerfile"
   fi

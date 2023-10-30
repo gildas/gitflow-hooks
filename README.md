@@ -64,6 +64,11 @@ You can turn off the Dockerfile feature with:
 git config --bool gitflow.branch.bump-dockerfile false
 ```
 
+You can also change the default name and location of the Dockerfile:
+```bash
+git config gitflow.path.dockerfile path/to/Dockerfile
+```
+
 The scripts will also bump the [Appveyor](https://www.appveyor.com) version if it is present.
 
 You can turn off the Appveyor feature with:
