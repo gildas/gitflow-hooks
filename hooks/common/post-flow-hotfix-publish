@@ -62,6 +62,42 @@ elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
     echo "Create PR at: https://github.com/$repo/compare/$BRANCH?expand=1"
     echo "Do not delete the hotfix branch after the PR is merged. It will be deleted automatically when the hotfix is finished."
   fi
+elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
+  repo=$(echo $ORIGIN_URL | sed -e 's/^git@bitbucket\.org://' -e 's/\.git$//')
+  token=$(get_config bitbucket.api.access-token)
+  [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
+  verbose "Creating a PR on repository $repo"
+  curl https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests \
+    --request POST \
+    --header "Authorization: Bearer ${token}" \
+    --header 'Content-Type: application/json' \
+    --data @- <<EOM
+    {
+      "title": "Merge $BRANCH",
+      "description": "Feature $VERSION. Do not delete the feature branch after the merge.",
+      "destination": { "branch": { "name": "$MASTER_BRANCH" } },
+      "source":      { "branch": { "name": "$BRANCH" } }
+   }
+EOM
+    die_on_error "Failed to create a Pull Request"
+elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
+  repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
+  token=$(get_config bitbucket.api.access-token)
+  [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
+  verbose "Creating a PR on repository $repo"
+  curl https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests \
+    --request POST \
+    --header "Authorization: Bearer ${token}" \
+    --header 'Content-Type: application/json' \
+    --data @- <<EOM
+    {
+      "title": "Merge $BRANCH",
+      "description": "Feature $VERSION. Do not delete the feature branch after the merge.",
+      "destination": { "branch": { "name": "$MASTER_BRANCH" } },
+      "source":      { "branch": { "name": "$BRANCH" } }
+   }
+EOM
+    die_on_error "Failed to create a Pull Request"
 else
   echo "Create a PR manually at $ORIGIN_URL"
   echo "Do not delete the hotfix branch after the PR is merged. It will be deleted automatically when the hotfix is finished."

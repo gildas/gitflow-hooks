@@ -45,6 +45,57 @@ if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
   else
     die "gh is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
   fi
+elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
+  if command -v gh &> /dev/null; then
+    PR_STATE=$(gh pr view $BRANCH --json state --jq .state)
+    die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
+    if [[ $PR_STATE != MERGED ]]; then
+      die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
+    fi
+    verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
+    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
+  else
+    die "gh is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
+  fi
+elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
+  repo=$(echo $ORIGIN_URL | sed -e 's/^git@bitbucket\.org://' -e 's/\.git$//')
+  token=$(get_config bitbucket.api.access-token)
+  [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
+  verbose "Checking Pull Request on repository $repo for $BRANCH"
+  PR_STATE=$(curl -sS \
+    --header "Authorization: Bearer $(git config bitbucket.api.username)" \
+    https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests?state=ALL |\
+    jq -r --arg BRANCH $BRANCH '
+      .values |= sort_by(.updated_on) |
+      last(.values[] | select(.source.branch.name == $BRANCH) | .state)'
+  )
+  die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
+  if [[ $PR_STATE != MERGED ]]; then
+    die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
+  fi
+  verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
+  git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+  die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
+elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
+  repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
+  token=$(get_config bitbucket.api.access-token)
+  [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
+  verbose "Checking Pull Request on repository $repo for $BRANCH"
+  PR_STATE=$(curl -sS \
+    --header "Authorization: Bearer $(git config bitbucket.api.username)" \
+    https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests?state=ALL |\
+    jq -r --arg BRANCH $BRANCH '
+      .values |= sort_by(.updated_on) |
+      last(.values[] | select(.source.branch.name == $BRANCH) | .state)'
+  )
+  die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
+  if [[ $PR_STATE != MERGED ]]; then
+    die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
+  fi
+  verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
+  git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+  die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
 else
   die "$ORIGIN ($ORIGIN_URL) is not a github repository, so I cannot check pull request states"
 fi
