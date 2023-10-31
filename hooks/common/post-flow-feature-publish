@@ -47,7 +47,7 @@ if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
     echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
     echo ""
   fi
-elif [[ $ORIGIN_URL =~ ^https://gitbuh.com ]]; then
+elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
   repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/github\.com\///' -e 's/\.git$//')
   if command -v gh &> /dev/null; then
     gh pr create \
