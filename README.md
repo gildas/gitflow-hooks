@@ -48,11 +48,13 @@ You can also change the _prefix_ used to tag the new release/hotfix (default is 
 git config gitflow.prefix.versiontag v
 ```
 
-When using Pull Requests, if the origin is on github, the scripts will rely on the [Github's CLI (gh)](https://cli.github.com) and will fail if the tool is not present. If the origin is on bitbucket, you must create a [repository access token](https://support.atlassian.com/bitbucket-cloud/docs/create-a-repository-access-token/) and store this access token in the git config:
+When using Pull Requests, if the origin is on [GitHub](https://github.com), the scripts will rely on the [Github's CLI (gh)](https://cli.github.com) and will fail if the tool is not present. If the origin is on [BitBucket](https://bitbucket.org), you must create a [repository access token](https://support.atlassian.com/bitbucket-cloud/docs/create-a-repository-access-token/) and store this access token in the git config:
 
 ```sh
 git config bitbucket.api.access-token xxxxyyyy
 ```
+
+If the origin is on [GitLab](https://gitlab.com/about), the [GitLab CLI](https://gitlab.com/gitlab-org/cli) must be installed.
 
 The scripts will also bump the Helm Chart version if it is present. You can configure the location of the chart with:  
 ```bash
