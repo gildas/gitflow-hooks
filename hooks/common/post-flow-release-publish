@@ -99,6 +99,21 @@ elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
    }
 EOM
     die_on_error "Failed to create a Pull Request"
+elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
+  repo=$(echo $ORIGIN_URL | sed -e 's/^git@gitlab\.com://' -e 's/\.git$//')
+  if command -v glab &> /dev/null; then
+    glab mr create \
+      --title         "Merge $BRANCH" \
+      --description   "Release $VERSION. Do not delete the release branch after the merge." \
+      --source-branch $BRANCH \
+      --target-branch $MASTER_BRANCH \
+      --yes
+  else
+    echo ""
+    echo "Create Pull Request at: https://gitlab.com/$repo/-/merge_requests/new"
+    echo "Do not delete the feature branch after the Pull Request is merged. It will be deleted automatically when the feature is finished."
+    echo ""
+  fi
 else
   echo "Create a Pull Request manually at $ORIGIN_URL"
   echo "Do not delete the release branch after the Pull Request is merged. It will be deleted automatically when the release is finished."

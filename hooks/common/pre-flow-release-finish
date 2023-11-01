@@ -96,6 +96,19 @@ elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
   verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
   git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
   die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
+elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
+  if command -v glab &> /dev/null; then
+    PR_STATE=$(glab mr view $BRANCH | awk '/^state:/{print $2}')
+    die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
+    if [[ $PR_STATE != merged ]]; then
+      die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
+    fi
+    verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
+    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
+  else
+    die "glab is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
+  fi
 else
   die "$ORIGIN ($ORIGIN_URL) is not a github repository, so I cannot check pull request states"
 fi
