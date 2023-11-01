@@ -70,7 +70,7 @@ elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
       .values |= sort_by(.updated_on) |
       last(.values[] | select(.source.branch.name == $BRANCH) | .state)'
   )
-  die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
+  die_on_error "There is no Pull Request for branch $BRANCH, please publish this hotfix before finishing it."
   if [[ $PR_STATE != MERGED ]]; then
     die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
   fi

@@ -27,7 +27,7 @@ fi
 source "$HOOKS_DIR"/functions.sh
 
 if ! get_config_bool gitflow.use-pull-request true; then
-  verbose "Pull requests are disabled. Skipping PR creation."
+  verbose "Pull requests are disabled. Skipping Pull Request creation."
   exit 0
 fi
 
@@ -43,8 +43,8 @@ if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
     die_on_error "Failed to create a Pull Request"
   else
     echo ""
-    echo "Create PR at: https://github.com/$repo/compare/$BRANCH?expand=1"
-    echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
+    echo "Create Pull Request at: https://github.com/$repo/compare/$BRANCH?expand=1"
+    echo "Do not delete the feature branch after the Pull Request is merged. It will be deleted automatically when the feature is finished."
     echo ""
   fi
 elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
@@ -59,15 +59,15 @@ elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
     die_on_error "Failed to create a Pull Request"
   else
     echo ""
-    echo "Create PR at: https://github.com/$repo/compare/$BRANCH?expand=1"
-    echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
+    echo "Create Pull Request at: https://github.com/$repo/compare/$BRANCH?expand=1"
+    echo "Do not delete the feature branch after the Pull Request is merged. It will be deleted automatically when the feature is finished."
     echo ""
   fi
 elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
   repo=$(echo $ORIGIN_URL | sed -e 's/^git@bitbucket\.org://' -e 's/\.git$//')
   token=$(get_config bitbucket.api.access-token)
   [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
-  verbose "Creating a PR on repository $repo"
+  verbose "Creating a Pull Request on repository $repo"
   curl https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests \
     --request POST \
     --header "Authorization: Bearer ${token}" \
@@ -85,7 +85,7 @@ elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
   repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
   token=$(get_config bitbucket.api.access-token)
   [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
-  verbose "Creating a PR on repository $repo"
+  verbose "Creating a Pull Request on repository $repo"
   curl https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests \
     --request POST \
     --header "Authorization: Bearer ${token}" \
@@ -100,8 +100,8 @@ elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
 EOM
     die_on_error "Failed to create a Pull Request"
 else
-  echo "Create a PR manually at $ORIGIN_URL"
-  echo "Do not delete the feature branch after the PR is merged. It will be deleted automatically when the feature is finished."
+  echo "Create a Pull Request manually at $ORIGIN_URL"
+  echo "Do not delete the feature branch after the Pull Request is merged. It will be deleted automatically when the feature is finished."
 fi
 
 exit 0
