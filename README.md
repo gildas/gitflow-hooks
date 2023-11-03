@@ -2,6 +2,12 @@
 
 This repository contains git hooks for git flow to help deploy releases and hotfixes in my go, nodejs repositories.
 
+Here are some sample repositories for [GitHub](https://github.com), [BitBucket](https://bitbucket.org), and [GitLab](https://gitlab.com):
+
+- [gitflow-pr-sandbox on GitHub](https://github.com/gildas/gitflow-pr-sandbox),
+- [gitflow-pr-sandbox on BitBucket](https://bitbucket.org/gildas_cherruel/gitflow-pr-sandbox),
+- [gitflow-pr-sandbox on GitLab](https://gitlab.com/gildas_cherruel/gitflow-pr-sandbox),
+
 ## Pre-Requisites
 
 The hooks from this repository will work only with [git flow AVH Edition](https://github.com/petervanderdoes/gitflow-avh). The basic git-flow does not handle git hooks. Make sure to [install](https://github.com/petervanderdoes/gitflow-avh/wiki/Installation) the proper version!
