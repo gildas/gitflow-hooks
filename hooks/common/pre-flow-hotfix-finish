@@ -17,6 +17,7 @@ VERSION=$1
 ORIGIN=$2
 BRANCH=$3
 ORIGIN_URL=$(git config remote.${ORIGIN}.url)
+CURRENT_BRANCH=$(git branch --show-current)
 
 # Find the folder location through potential symlinks
 if [[ -z $HOOKS_DIR ]]; then
@@ -40,7 +41,11 @@ if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
       die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
     fi
     verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+      git pull
+    else
+      git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    fi
     die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
   else
     die "gh is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
@@ -53,7 +58,11 @@ elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
       die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
     fi
     verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+      git pull
+    else
+      git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    fi
     die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
   else
     die "gh is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
@@ -75,7 +84,11 @@ elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
     die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
   fi
   verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-  git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+  if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+    git pull
+  else
+    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+  fi
   die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
 elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
   repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
@@ -94,7 +107,11 @@ elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
     die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
   fi
   verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-  git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+  if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+    git pull
+  else
+    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+  fi
   die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
 elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
   if command -v glab &> /dev/null; then
@@ -104,7 +121,11 @@ elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
       die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
     fi
     verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+      git pull
+    else
+      git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    fi
     die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
   else
     die "glab is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
