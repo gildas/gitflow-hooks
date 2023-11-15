@@ -73,7 +73,7 @@ elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
   [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
   verbose "Checking Pull Request on repository $repo for $BRANCH"
   PR_STATE=$(curl -sS \
-    --header "Authorization: Bearer $(git config bitbucket.api.username)" \
+    --header "Authorization: Bearer $token" \
     https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests?state=ALL |\
     jq -r --arg BRANCH $BRANCH '
       .values |= sort_by(.updated_on) |
@@ -96,7 +96,7 @@ elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
   [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
   verbose "Checking Pull Request on repository $repo for $BRANCH"
   PR_STATE=$(curl -sS \
-    --header "Authorization: Bearer $(git config bitbucket.api.username)" \
+    --header "Authorization: Bearer $token" \
     https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests?state=ALL |\
     jq -r --arg BRANCH $BRANCH '
       .values |= sort_by(.updated_on) |
