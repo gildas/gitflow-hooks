@@ -64,40 +64,26 @@ elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
   fi
 elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
   repo=$(echo $ORIGIN_URL | sed -e 's/^git@bitbucket\.org://' -e 's/\.git$//')
-  token=$(get_config bitbucket.api.access-token)
-  [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
+  profile=$(git config bitbucket.cli.profile)
   verbose "Creating a Pull Request on repository $repo"
-  curl https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests \
-    --request POST \
-    --header "Authorization: Bearer ${token}" \
-    --header 'Content-Type: application/json' \
-    --data @- <<EOM
-    {
-      "title": "Merge $BRANCH",
-      "description": "Hotfix $VERSION. Do not delete the hotfix branch after the merge.",
-      "destination": { "branch": { "name": "$MASTER_BRANCH" } },
-      "source":      { "branch": { "name": "$BRANCH" } }
-   }
-EOM
-    die_on_error "Failed to create a Pull Request"
+  bb ${profile:+--profile $profile} pr create \
+    --title "Merge $BRANCH" \
+    --description "Hotfix $VERSION. Do not delete the hotfix branch after the merge." \
+    --repository  $repo \
+    --source      $BRANCH \
+    --destination $MASTER_BRANCH
+  die_on_error "Failed to create a Pull Request"
 elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
   repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
-  token=$(get_config bitbucket.api.access-token)
-  [[ -z $token ]] && die "Bitbucket's API Access Token is empty"
+  profile=$(git config bitbucket.cli.profile)
   verbose "Creating a Pull Request on repository $repo"
-  curl https://api.bitbucket.org/2.0/repositories/${repo}/pullrequests \
-    --request POST \
-    --header "Authorization: Bearer ${token}" \
-    --header 'Content-Type: application/json' \
-    --data @- <<EOM
-    {
-      "title": "Merge $BRANCH",
-      "description": "Hotfix $VERSION. Do not delete the hotfix branch after the merge.",
-      "destination": { "branch": { "name": "$MASTER_BRANCH" } },
-      "source":      { "branch": { "name": "$BRANCH" } }
-   }
-EOM
-    die_on_error "Failed to create a Pull Request"
+  bb ${profile:+--profile $profile} pr create \
+    --title "Merge $BRANCH" \
+    --description "Hotfix $VERSION. Do not delete the hotfix branch after the merge." \
+    --repository  $repo \
+    --source      $BRANCH \
+    --destination $MASTER_BRANCH
+  die_on_error "Failed to create a Pull Request"
 elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
   repo=$(echo $ORIGIN_URL | sed -e 's/^git@gitlab\.com://' -e 's/\.git$//')
   if command -v glab &> /dev/null; then
