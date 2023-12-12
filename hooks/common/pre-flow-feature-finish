@@ -72,7 +72,7 @@ elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
   profile=$(git config bitbucket.cli.profile)
   verbose "Checking Pull Request on repository $repo for $BRANCH"
   PR_STATE=$( \
-    bb ${profile:+--profile $profile} pr list --repository $repo |\
+    bb ${profile:+--profile $profile} pr list --repository $repo --state all --output json |\
     jq -r --arg BRANCH $BRANCH '
       . |= sort_by(.updated_on) |
       last(.[] | select(.source.branch.name == $BRANCH) | .state)'
@@ -93,7 +93,7 @@ elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
   profile=$(git config bitbucket.cli.profile)
   verbose "Checking Pull Request on repository $repo for $BRANCH"
   PR_STATE=$( \
-    bb ${profile:+--profile $profile} pr list --repository $repo |\
+    bb ${profile:+--profile $profile} pr list --repository $repo --state all --output json |\
     jq -r --arg BRANCH $BRANCH '
       . |= sort_by(.updated_on) |
       last(.[] | select(.source.branch.name == $BRANCH) | .state)'
