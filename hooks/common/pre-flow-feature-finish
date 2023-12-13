@@ -58,10 +58,10 @@ elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
       die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
     fi
     verbose "Fetching ${DEVELOP_BRANCH} from $ORIGIN"
-    if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+    if [[ $CURRENT_BRANCH == $DEVELOP_BRANCH ]]; then
       git pull
     else
-      git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+      git fetch $ORIGIN ${DEVELOP_BRANCH}:${DEVELOP_BRANCH}
     fi
     die_on_error "Failed to fetch $DEVELOP_BRANCH from $ORIGIN"
   else
@@ -82,10 +82,10 @@ elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
     die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
   fi
   verbose "Fetching ${DEVELOP_BRANCH} from $ORIGIN"
-  if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+  if [[ $CURRENT_BRANCH == $DEVELOP_BRANCH ]]; then
     git pull
   else
-    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    git fetch $ORIGIN ${DEVELOP_BRANCH}:${DEVELOP_BRANCH}
   fi
   die_on_error "Failed to fetch $DEVELOP_BRANCH from $ORIGIN"
 elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
@@ -103,10 +103,10 @@ elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
     die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
   fi
   verbose "Fetching ${DEVELOP_BRANCH} from $ORIGIN"
-  if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+  if [[ $CURRENT_BRANCH == $DEVELOP_BRANCH ]]; then
     git pull
   else
-    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+    git fetch $ORIGIN ${DEVELOP_BRANCH}:${DEVELOP_BRANCH}
   fi
   die_on_error "Failed to fetch $DEVELOP_BRANCH from $ORIGIN"
 elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
@@ -117,10 +117,10 @@ elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
       die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
     fi
     verbose "Fetching ${DEVELOP_BRANCH} from $ORIGIN"
-    if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+    if [[ $CURRENT_BRANCH == $DEVELOP_BRANCH ]]; then
       git pull
     else
-      git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+      git fetch $ORIGIN ${DEVELOP_BRANCH}:${DEVELOP_BRANCH}
     fi
     die_on_error "Failed to fetch $DEVELOP_BRANCH from $ORIGIN"
   else
