@@ -16,7 +16,6 @@
 VERSION=$1
 ORIGIN=$2
 BRANCH=$3
-ORIGIN_URL=$(git config remote.${ORIGIN}.url)
 
 # Find the folder location through potential symlinks
 if [[ -z $HOOKS_DIR ]]; then
@@ -31,77 +30,12 @@ if ! get_config_bool gitflow.use-pull-request true; then
   exit 0
 fi
 
-if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
-  repo=$(echo $ORIGIN_URL | sed -e 's/^git@github\.com://' -e 's/\.git$//')
-  if command -v gh &> /dev/null; then
-    gh pr create \
-      --title "Merge $BRANCH" \
-      --body  "Hotfix $VERSION. Do not delete the hotfix branch after the merge." \
-      --base  $MASTER_BRANCH \
-      --repo  $repo
-  # TODO: use --web optionally so the user can edit the PR?!?
-    die_on_error "Failed to create a Pull Request"
-  else
-    echo ""
-    echo "Create Pull Request at: https://github.com/$repo/compare/$BRANCH?expand=1"
-    echo "Do not delete the hotfix branch after the Pull Request is merged. It will be deleted automatically when the hotfix is finished."
-    echo ""
-  fi
-elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
-  repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/github\.com\///' -e 's/\.git$//')
-  if command -v gh &> /dev/null; then
-    gh pr create \
-      --title "Merge $BRANCH" \
-      --body  "Hotfix $VERSION. Do not delete the hotfix branch after the merge." \
-      --base  $MASTER_BRANCH \
-      --repo  $repo
-  # TODO: use --web optionally so the user can edit the PR?!?
-    die_on_error "Failed to create a Pull Request"
-  else
-    echo ""
-    echo "Create Pull Request at: https://github.com/$repo/compare/$BRANCH?expand=1"
-    echo "Do not delete the hotfix branch after the Pull Request is merged. It will be deleted automatically when the hotfix is finished."
-  fi
-elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
-  repo=$(echo $ORIGIN_URL | sed -e 's/^git@bitbucket\.org://' -e 's/\.git$//')
-  profile=$(git config bitbucket.cli.profile)
-  verbose "Creating a Pull Request on repository $repo"
-  bb ${profile:+--profile $profile} pr create \
-    --title "Merge $BRANCH" \
-    --description "Hotfix $VERSION. Do not delete the hotfix branch after the merge." \
-    --repository  $repo \
-    --source      $BRANCH \
-    --destination $MASTER_BRANCH
-  die_on_error "Failed to create a Pull Request"
-elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
-  repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
-  profile=$(git config bitbucket.cli.profile)
-  verbose "Creating a Pull Request on repository $repo"
-  bb ${profile:+--profile $profile} pr create \
-    --title "Merge $BRANCH" \
-    --description "Hotfix $VERSION. Do not delete the hotfix branch after the merge." \
-    --repository  $repo \
-    --source      $BRANCH \
-    --destination $MASTER_BRANCH
-  die_on_error "Failed to create a Pull Request"
-elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
-  repo=$(echo $ORIGIN_URL | sed -e 's/^git@gitlab\.com://' -e 's/\.git$//')
-  if command -v glab &> /dev/null; then
-    glab mr create \
-      --title         "Merge $BRANCH" \
-      --description   "Hotfix $VERSION. Do not delete the hotfix branch after the merge." \
-      --source-branch $BRANCH \
-      --target-branch $MASTER_BRANCH \
-      --yes
-  else
-    echo ""
-    echo "Create Pull Request at: https://gitlab.com/$repo/-/merge_requests/new"
-    echo "Do not delete the feature branch after the Pull Request is merged. It will be deleted automatically when the feature is finished."
-    echo ""
-  fi
-else
-  echo "Create a Pull Request manually at $ORIGIN_URL"
-  echo "Do not delete the hotfix branch after the Pull Request is merged. It will be deleted automatically when the hotfix is finished."
-fi
+create_pull_request \
+  $ORIGIN \
+  $BRANCH \
+  $MASTER_BRANCH \
+  "Merge $BRANCH" \
+  "Hotfix $VERSION. Do not delete the hotfix branch after the merge."
+die_on_error "Failed to create a Pull Request"
 
 exit 0

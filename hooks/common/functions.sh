@@ -178,3 +178,110 @@ function update_appveyor_version() { # {{{2
   fi
 } # 2}}}
 
+function get_repo_type() { # {{{2
+  local origin=$1
+  local origin_url=$(git config remote.${origin}.url)
+  local repo_type
+
+  if [[ $origin_url =~ ^git@github\.com ]]; then
+    repo_type="github"
+  elif [[ $origin_url =~ ^https://github\.com ]]; then
+    repo_type="github"
+  elif [[ $origin_url =~ ^git@bitbucket\.org ]]; then
+    repo_type="bitbucket"
+  elif [[ $origin_url =~ ^https://.*bitbucket\.org ]]; then
+    repo_type="bitbucket"
+  elif [[ $origin_url =~ ^git@gitlab\.com ]]; then
+    repo_type="gitlab"
+  else
+    return 1
+  fi
+  printf "%s" $repo_type
+  return 0
+} # 2}}}
+
+function get_repo() { # {{{2
+  local origin=$1
+  local origin_url=$(git config remote.${origin}.url)
+  local repo
+
+  if [[ $origin_url =~ ^git@github\.com ]]; then
+    repo=$(echo $origin_url | sed -e 's/^git@github\.com://' -e 's/\.git$//')
+  elif [[ $origin_url =~ ^https://github\.com ]]; then
+    repo=$(echo $origin_url | sed -e 's/https:\/\/github\.com\///' -e 's/\.git$//')
+  elif [[ $origin_url =~ ^git@bitbucket\.org ]]; then
+    repo=$(echo $origin_url | sed -e 's/^git@bitbucket\.org://' -e 's/\.git$//')
+  elif [[ $origin_url =~ ^https://.*bitbucket\.org ]]; then
+    repo=$(echo $origin_url | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
+  elif [[ $origin_url =~ ^git@gitlab\.com ]]; then
+    repo=$(echo $origin_url | sed -e 's/^git@gitlab\.com://' -e 's/\.git$//')
+  else
+    return 1
+  fi
+  printf "%s" $repo
+  return 0
+} # 2}}}
+
+function create_pull_request() { #2{{{
+  local origin=$1
+  local source=$2
+  local destination=$3
+  local title=$4
+  local body=$5
+  local repo_type=$(get_repo_type $origin)
+  local repo=$(get_repo $origin)
+
+  verbose "Creating a Pull Request on repository $repo from $source to $destination"
+  case $repo_type in
+    github)
+      if command -v gh &>/dev/null; then
+        gh pr create \
+          --title "$title" \
+          --body  "$body" \
+          --repo  $repo \
+          --base  $destination
+        # TODO: use --web optionally so the user can edit the PR?!?
+      else
+        echo ""
+        echo "Create Pull Request at: https://github.com/$repo/compare/$source?expand=1"
+        echo "$body. It will be deleted automatically."
+        echo ""
+      fi
+      ;;
+    bitbucket)
+      if command -v bb &>/dev/null; then
+      local profile=$(git config bitbucket.cli.profile)
+        bb ${profile:+--profile $profile} pr create \
+          --title       "$title" \
+          --description "$body" \
+          --repository  $repo \
+          --source      $source \
+          --destination $destination
+      else
+        echo ""
+        echo "Create Pull Request at: https://bitbucket.org/$repo/branches"
+        echo "$body. It will be deleted automatically."
+        echo ""
+      fi
+      ;;
+    gitlab)
+      if command -v glab &> /dev/null; then
+        glab mr create \
+          --title         "$title" \
+          --description   "$description" \
+          --source-branch $source \
+          --target-branch $destination \
+          --yes
+      else
+        echo ""
+        echo "Create Pull Request at: https://gitlab.com/$repo/-/merge_requests/new"
+        echo "$body. It will be deleted automatically."
+        echo ""
+      fi
+      ;;
+    *)
+  echo "Create a Pull Request manually at $ORIGIN_URL"
+  echo "$body. It will be deleted automatically."
+      ;;
+  esac
+} # 2}}}
