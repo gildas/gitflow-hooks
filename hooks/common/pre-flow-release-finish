@@ -16,7 +16,6 @@
 VERSION=$1
 ORIGIN=$2
 BRANCH=$3
-ORIGIN_URL=$(git config remote.${ORIGIN}.url)
 CURRENT_BRANCH=$(git branch --show-current)
 
 # Find the folder location through potential symlinks
@@ -32,102 +31,17 @@ if ! get_config_bool gitflow.use-pull-request true; then
   exit 0
 fi
 
-# We should stop the finish if there is still a PR that is not merged
-if [[ $ORIGIN_URL =~ ^git@github\.com ]]; then
-  if command -v gh &> /dev/null; then
-    PR_STATE=$(gh pr view $BRANCH --json state --jq .state)
-    die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
-    if [[ $PR_STATE != MERGED ]]; then
-      die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
-    fi
-    verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-    if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
-      git pull
-    else
-      git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
-    fi
-    die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
-  else
-    die "gh is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
-  fi
-elif [[ $ORIGIN_URL =~ ^https://github\.com ]]; then
-  if command -v gh &> /dev/null; then
-    PR_STATE=$(gh pr view $BRANCH --json state --jq .state)
-    die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
-    if [[ $PR_STATE != MERGED ]]; then
-      die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
-    fi
-    verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-    if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
-      git pull
-    else
-      git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
-    fi
-    die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
-  else
-    die "gh is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
-  fi
-elif [[ $ORIGIN_URL =~ ^git@bitbucket\.org ]]; then
-  repo=$(echo $ORIGIN_URL | sed -e 's/^git@bitbucket\.org://' -e 's/\.git$//')
-  profile=$(git config bitbucket.cli.profile)
-  verbose "Checking Pull Request on repository $repo for $BRANCH"
-  PR_STATE=$( \
-    bb ${profile:+--profile $profile} pr list --repository $repo --state all --output json |\
-    jq -r --arg BRANCH $BRANCH '
-      . |= sort_by(.updated_on) |
-      last(.[] | select(.source.branch.name == $BRANCH) | .state)'
-  )
-  die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
-  if [[ $PR_STATE != MERGED ]]; then
-    die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
-  fi
-  verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-  if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
-    git pull
-  else
-    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
-  fi
-  die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
-elif [[ $ORIGIN_URL =~ ^https://.*bitbucket\.org ]]; then
-  repo=$(echo $ORIGIN_URL | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
-  profile=$(git config bitbucket.cli.profile)
-  verbose "Checking Pull Request on repository $repo for $BRANCH"
-  PR_STATE=$( \
-    bb ${profile:+--profile $profile} pr list --repository $repo --state all --output json |\
-    jq -r --arg BRANCH $BRANCH '
-      . |= sort_by(.updated_on) |
-      last(.[] | select(.source.branch.name == $BRANCH) | .state)'
-  )
-  die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
-  if [[ $PR_STATE != MERGED ]]; then
-    die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
-  fi
-  verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-  if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
-    git pull
-  else
-    git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
-  fi
-  die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
-elif [[ $ORIGIN_URL =~ ^git@gitlab\.com ]]; then
-  if command -v glab &> /dev/null; then
-    PR_STATE=$(glab mr view $BRANCH | awk '/^state:/{print $2}')
-    die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
-    if [[ $PR_STATE != merged ]]; then
-      die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
-    fi
-    verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
-    if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
-      git pull
-    else
-      git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
-    fi
-    die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
-  else
-    die "glab is not available, so I cannot check pull request states on $ORIGIN ($ORIGIN_URL)"
-  fi
-else
-  die "$ORIGIN ($ORIGIN_URL) is not a github repository, so I cannot check pull request states"
+PR_STATE=$(get_pull_request_state $ORIGIN $BRANCH)
+die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
+if [[ ${PR_STATE^^} != MERGED ]]; then
+  die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
 fi
+verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
+if [[ $CURRENT_BRANCH == $MASTER_BRANCH ]]; then
+  git pull
+else
+  git fetch $ORIGIN ${MASTER_BRANCH}:${MASTER_BRANCH}
+fi
+die_on_error "Failed to fetch $MASTER_BRANCH from $ORIGIN"
 
 exit 0

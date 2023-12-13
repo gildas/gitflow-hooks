@@ -222,7 +222,7 @@ function get_repo() { # {{{2
   return 0
 } # 2}}}
 
-function create_pull_request() { #2{{{
+function create_pull_request() { #{{{2
   local origin=$1
   local source=$2
   local destination=$3
@@ -250,7 +250,7 @@ function create_pull_request() { #2{{{
       ;;
     bitbucket)
       if command -v bb &>/dev/null; then
-      local profile=$(git config bitbucket.cli.profile)
+        local profile=$(git config bitbucket.cli.profile)
         bb ${profile:+--profile $profile} pr create \
           --title       "$title" \
           --description "$body" \
@@ -284,4 +284,38 @@ function create_pull_request() { #2{{{
   echo "$body. It will be deleted automatically."
       ;;
   esac
+} # 2}}}
+
+function get_pull_request_state() { # {{{2
+  local origin=$1
+  local branch=$2
+  local repo_type=$(get_repo_type $origin)
+  local repo=$(get_repo $origin)
+  local state
+
+  case $repo_type in
+    github)
+      if command -v gh &>/dev/null; then
+        state=$(gh pr view $branch --json state --jq .state)
+      fi
+      ;;
+    bitbucket)
+      if command -v bb &>/dev/null; then
+        local profile=$(git config bitbucket.cli.profile)
+        state=$( \
+          bb ${profile:+--profile $profile} pr list --repository $repo --state all --output json |\
+          jq -r --arg branch $branch '
+            . |= sort_by(.updated_on) |
+            last(.[] | select(.source.branch.name == $branch) | .state)'
+        )
+      fi
+      ;;
+    gitlab)
+      if command -v glab &> /dev/null; then
+        state=$(glab mr view $branch | awk '/^state:/{print $2}')
+      fi
+      ;;
+  esac
+  printf "%s" $state
+  return 0
 } # 2}}}
