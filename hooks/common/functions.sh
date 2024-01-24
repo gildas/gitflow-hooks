@@ -280,8 +280,9 @@ function create_pull_request() { #{{{2
       fi
       ;;
     *)
-  echo "Create a Pull Request manually at $ORIGIN_URL"
-  echo "$body. It will be deleted automatically."
+      echo "Unknown origin type: $repo_type"
+      echo "Create a Pull Request manually at $ORIGIN_URL"
+      echo "$body. It will be deleted automatically."
       ;;
   esac
 } # 2}}}
