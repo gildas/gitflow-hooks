@@ -183,15 +183,15 @@ function get_repo_type() { # {{{2
   local origin_url=$(git config remote.${origin}.url)
   local repo_type
 
-  if [[ $origin_url =~ ^git@github\.com ]]; then
+  if [[ $origin_url =~ ^(ssh://)?git@github\.com ]]; then
     repo_type="github"
   elif [[ $origin_url =~ ^https://github\.com ]]; then
     repo_type="github"
-  elif [[ $origin_url =~ ^git@bitbucket\.org ]]; then
+  elif [[ $origin_url =~ ^(ssh://)?git@bitbucket\.org ]]; then
     repo_type="bitbucket"
   elif [[ $origin_url =~ ^https://.*bitbucket\.org ]]; then
     repo_type="bitbucket"
-  elif [[ $origin_url =~ ^git@gitlab\.com ]]; then
+  elif [[ $origin_url =~ ^(ssh://)?git@gitlab\.com ]]; then
     repo_type="gitlab"
   else
     return 1
@@ -205,16 +205,16 @@ function get_repo() { # {{{2
   local origin_url=$(git config remote.${origin}.url)
   local repo
 
-  if [[ $origin_url =~ ^git@github\.com ]]; then
-    repo=$(echo $origin_url | sed -e 's/^git@github\.com://' -e 's/\.git$//')
+  if [[ $origin_url =~ ^(ssh://)?git@github\.com ]]; then
+    repo=$(echo $origin_url | sed -e 's/^(ssh:\/\/)?git@github\.com://' -e 's/\.git$//')
   elif [[ $origin_url =~ ^https://github\.com ]]; then
     repo=$(echo $origin_url | sed -e 's/https:\/\/github\.com\///' -e 's/\.git$//')
-  elif [[ $origin_url =~ ^git@bitbucket\.org ]]; then
-    repo=$(echo $origin_url | sed -e 's/^git@bitbucket\.org://' -e 's/\.git$//')
+  elif [[ $origin_url =~ ^(ssh://)?git@bitbucket\.org ]]; then
+    repo=$(echo $origin_url | sed -e 's/^(ssh:\/\/)?git@bitbucket\.org://' -e 's/\.git$//')
   elif [[ $origin_url =~ ^https://.*bitbucket\.org ]]; then
     repo=$(echo $origin_url | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
-  elif [[ $origin_url =~ ^git@gitlab\.com ]]; then
-    repo=$(echo $origin_url | sed -e 's/^git@gitlab\.com://' -e 's/\.git$//')
+  elif [[ $origin_url =~ ^(ssh://)?git@gitlab\.com ]]; then
+    repo=$(echo $origin_url | sed -e 's/^(ssh:\/\/)?git@gitlab\.com://' -e 's/\.git$//')
   else
     return 1
   fi
