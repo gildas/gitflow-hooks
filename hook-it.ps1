@@ -84,7 +84,9 @@ if (! (Test-Path $hooksPath)) {
 }
 
 $language = ""
-if (Test-Path $Path/package.json) {
+if (Test-Path $Path/sfdx-project.json) {
+  $language = "salesforce"
+} elseif (Test-Path $Path/package.json) {
   $language = "node"
 } elseif (Test-Path $Path/go.mod) {
   $language = "go"

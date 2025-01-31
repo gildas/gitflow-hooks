@@ -60,7 +60,9 @@ function inject_hooks() {
   fi
 
   # 3/ find language
-  if [[ -e $repo/package.json ]]; then
+  if [[ -e $repo/sfdx-project.json ]]; then
+    language="salesForce"
+  elif [[ -e $repo/package.json ]]; then
     language="node"
   elif [[ -e $repo/go.mod ]]; then
     language="go"
