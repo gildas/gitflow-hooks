@@ -19,10 +19,12 @@ The version of the target repository is assumed to follow the [semver](https://s
 First, you should `git clone` this project.
 
 Then, from its folder, you just run the deployment script, pointing it at the target repository:  
+
 ```bash
 ./hook-it /path/to/repo
 ```  
 On Windows:
+
 ```posh
 .\hook-it.ps1 -Path /path/to/repo
 ```
@@ -38,18 +40,31 @@ The script also checks if your installed git-flow is the AVH edition, and stops 
 ## Configuration
 
 By default, the hooks will prevent you from:
+
 - committing anything to the master branch
 - committing anything that has unresolved merge conflicts
 - force Pull Request usage
 
 In case you do not want either of these features, you can turn them off with:
+
 ```bash
 git config --bool gitflow.allow-master-commit true
 git config --bool gitflow.allow-conflict-commit true
 git config --bool gitflow.use-pull-request false
 ```
 
+The hooks will also:
+
+- format the code with [gofmt](https://pkg.go.dev/cmd/gofmt) for [Go](https://go.dev) changes
+
+Similarly, you can turn off the formatting feature with:
+
+```bash
+git config --bool gitflow.prettify false
+```
+
 You can also change the _prefix_ used to tag the new release/hotfix (default is "v"):
+
 ```bash
 git config gitflow.prefix.versiontag v
 ```
@@ -61,12 +76,14 @@ If the origin is on [BitBucket](https://bitbucket.org), the scripts will rely on
 If the origin is on [GitLab](https://gitlab.com), the scripts will reply on the [GitLab's CLI (glab)](https://gitlab.com/gitlab-org/cli) and will fail if the tool is not present.
 
 The scripts will also bump the Helm Chart version if it is present. You can configure the location of the chart with:  
+
 ```bash
 git config gitflow.path.chart path/to/chart
 ```
 The default location is: `chart/`
 
 You can turn off the chart feature with:
+
 ```bash
 git config --bool gitflow.bump-chart false
 ```
@@ -74,11 +91,13 @@ git config --bool gitflow.bump-chart false
 The scripts will also update the [OCI annotations](https://github.com/opencontainers/image-spec/blob/main/annotations.md) (`version` and `created`) in the Dockerfile if present.
 
 You can turn off the Dockerfile feature with:
+
 ```bash
 git config --bool gitflow.bump-dockerfile false
 ```
 
 You can also change the default name and location of the Dockerfile:
+
 ```bash
 git config gitflow.path.dockerfile path/to/Dockerfile
 ```
@@ -86,6 +105,7 @@ git config gitflow.path.dockerfile path/to/Dockerfile
 The scripts will also bump the [Appveyor](https://www.appveyor.com) version if it is present.
 
 You can turn off the Appveyor feature with:
+
 ```bash
 git config --bool gitflow.bump-appveyor false
 ```
@@ -96,11 +116,13 @@ git config --bool gitflow.bump-appveyor false
 Once the hooks are initialized, everything can be done in the target repository folder.
 
 Starting a new release can be done simply:
+
 ```bash
 git flow release start xxx
 ```
 
 Similarly, starting a hotfix can be done as follows:
+
 ```bash
 git flow hotfix start xxx
 ```
@@ -108,6 +130,7 @@ git flow hotfix start xxx
 Where `xxx` is the new version you are releasing/hotfixing, it is mandatory. If `xxx` is one of `major`, `minor`, `patch`, the scripts will _bump_ the corresponding component of the current version (from the repository code) according to the [semver](https://semver.org) recommandations.
 
 For example, if the current version is `1.2.3`:
+
 - `major` will update the version to 2.0.0
 - `minor` will update the version to 1.3.0
 - `patch` will update the version to 1.2.4
@@ -115,6 +138,7 @@ For example, if the current version is `1.2.3`:
 The scripts will also commit the _bumped_ files.
 
 Depending on the language, the scripts will _bump_ the following files:
+
 - _version.go_ in Go (or any file that contains the line: `var VERSION = "1.2.3"`);
 - _package.json_ in Node.js;
 
@@ -127,6 +151,7 @@ git flow release publish
 As indicated in the command line result instruction, while merging the Pull Request, the approver should not delete the release branch.
 
 When the release is ready, simply _finish_ it:
+
 ```console
 git flow release finish
 ```
@@ -134,9 +159,11 @@ git flow release finish
 **Note:** The `finish` process will fail if there is no Pull Request (asuming you use the Pull Request usage feature) or the current Pull Request has not been properly merged.
 
 Examples:
+
 ```console
 git flow release start 12.3.4
 ```
+
 ```console
 git flow release start major
 ```
@@ -161,3 +188,4 @@ Maybe having some in-repository code that would allow the hooks to update to the
 Thanks to [Peter van der Does](https://github.com/petervanderdoes) and [Jasper N. Brouwer](https://github.com/jaspernbrouwer) for their git flow hooks examples (resp. [petervanderdoes/gitflow-avh](https://github.com/petervanderdoes/gitflow-avh), [jaspernbrouwer/git-flow-hooks](https://github.com/jaspernbrouwer/git-flow-hooks)) that inspired me.
 
 Of course, we wouldn't have any git flow without [Vincent Driessen](https://nvie.com/about) and his inspiring blog post [A successful Git branching model](https://nvie.com/posts/a-successful-git-branching-model) about 10 years ago...
+
