@@ -320,3 +320,10 @@ function get_pull_request_state() { # {{{2
   printf "%s" $state
   return 0
 } # 2}}}
+
+# Set the VERBOSE variable via environment or configuration
+if [[ $VERBOSE == 0 ]]; then
+  if get_config_bool gitflow.verbose false; then
+    VERBOSE=1
+  fi
+fi
