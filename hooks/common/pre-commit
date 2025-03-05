@@ -32,6 +32,9 @@ if get_config_bool gitflow.prettify true; then
   GOFMT=$(command -v gofmt)
   if (( $? )); then
     GOFMT=$GOROOT/bin/gofmt
+    if [[ ! -e $GOFMT ]]; then
+      go install gofmt
+    fi
     [[ ! -e $GOFMT ]] && die "The gofmt tool is missing, aborting"
   fi
 
