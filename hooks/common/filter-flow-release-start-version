@@ -25,6 +25,8 @@ fi
 source "$HOOKS_DIR"/functions.sh
 source "$HOOKS_DIR"/functions-lang.sh
 
+verbose "Hook: filter-flow-release-start-version"
+
 VERSION_FILE=$(find_version_file)
 die_on_error
 

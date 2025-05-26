@@ -7,6 +7,8 @@ if [[ -z $HOOKS_DIR ]]; then
 fi
 source "$HOOKS_DIR"/functions.sh
 
+verbose "Hook: pre-commit"
+
 if ! get_config_bool gitflow.allow-master-commit; then
   MASTER=$(git config --get gitflow.branch.master)
   BRANCH=$(git symbolic-ref HEAD)

@@ -24,6 +24,8 @@ if [[ -z $HOOKS_DIR ]]; then
 fi
 source "$HOOKS_DIR"/functions.sh
 
+verbose "Hook: filter-flow-release-finish-tag-message"
+
 # Remove the version prefix (v), just in case...
 VERSION_TAG=$(get_config gitflow.prefix.versiontag)
 [[ -n $VERSION_TAG ]] && VERSION=${VERSION##*$VERSION_TAG}

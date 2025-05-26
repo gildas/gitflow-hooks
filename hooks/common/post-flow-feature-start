@@ -27,6 +27,8 @@ if [[ -z $HOOKS_DIR ]]; then
 fi
 source "$HOOKS_DIR"/functions.sh
 
+verbose "Hook: post-flow-feature-start"
+
 if get_config_bool gitflow.use-pull-request true; then
   echo "This repository uses Pull Requests."
   echo ""

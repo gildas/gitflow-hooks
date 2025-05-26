@@ -25,6 +25,8 @@ if [[ -z $HOOKS_DIR ]]; then
 fi
 source "$HOOKS_DIR"/functions.sh
 
+verbose "Hook: post-flow-feature-publish"
+
 if ! get_config_bool gitflow.use-pull-request true; then
   verbose "Pull requests are disabled. Skipping Pull Request creation."
   exit 0

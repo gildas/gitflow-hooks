@@ -28,6 +28,8 @@ fi
 source "$HOOKS_DIR"/functions.sh
 source "$HOOKS_DIR"/functions-lang.sh
 
+verbose "Hook: post-flow-hotfix-start"
+
 if get_config_bool gitflow.bump-chart true; then
   CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
   if [[ -f $CHART_DIR/Chart.yaml ]]; then

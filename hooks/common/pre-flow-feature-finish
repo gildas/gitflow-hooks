@@ -26,6 +26,8 @@ if [[ -z $HOOKS_DIR ]]; then
 fi
 source "$HOOKS_DIR"/functions.sh
 
+verbose "Hook: pre-flow-feature-finish"
+
 if ! get_config_bool gitflow.use-pull-request true; then
   verbose "Pull requests are disabled. Feature can be finished."
   exit 0
