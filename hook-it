@@ -33,12 +33,12 @@ function inject_hooks() {
   verbose "Injecting git hooks into $repo"
 
   # 1/ make sure git flow is initialized
-  if [[ -z $($GIT -C $repo config gitflow.branch.master) ]]; then
+  if [[ -z $($GIT -C $repo config --local gitflow.allow-master-commit) ]]; then
     verbose "Initializing git flow in repository $repo"
     $NOOP $GIT -C $repo flow init -d --tag v
     status=$? ; (( status )) && ERROR="Error while initializing git flow in repository $REPO" && return $status
   fi
-  hooks_path=$($GIT -C $repo config gitflow.path.hooks)
+  hooks_path=$($GIT -C $repo config --local gitflow.path.hooks)
   if [[ -z $hooks_path ]]; then
     ERROR="git flow AVH edition is needed for this to work" && return 1
   fi
