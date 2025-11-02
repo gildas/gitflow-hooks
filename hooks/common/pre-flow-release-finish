@@ -35,7 +35,8 @@ fi
 
 PR_STATE=$(get_pull_request_state $ORIGIN $BRANCH)
 die_on_error "There is no Pull Request for branch $BRANCH, please publish this release before finishing it."
-if [[ ${PR_STATE^^} != MERGED ]]; then
+verbose "Pull Request state for branch $BRANCH is: $PR_STATE"
+if [[ -n ${PR_STATE} &&  ${PR_STATE^^} != MERGED ]]; then
   die "There is a Pull Request that is not yet merged, please wait (Status: $PR_STATE)"
 fi
 verbose "Fetching ${MASTER_BRANCH} from $ORIGIN"
