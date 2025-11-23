@@ -3,6 +3,7 @@
 # Application variables
 DEFAULT_HOOKS_DIR="${DEFAULT_HOOKS_DIR:-.git/hooks}"
 REPO=
+USE_PULL_REQUESTS=1
 
 # General variables
 ASSUMEYES=1
@@ -51,6 +52,12 @@ function inject_hooks() {
   $NOOP $GIT -C $repo config gitflow.hotfix.finish.message  "Hotfix %tag%"
   $NOOP $GIT -C $repo config gitflow.release.finish.message "Release %tag%"
 
+  if (( USE_PULL_REQUESTS )); then
+    $NOOP $GIT -C $repo config gitflow.use-pull-request true
+  else
+    $NOOP $GIT -C $repo config gitflow.use-pull-request false
+  fi
+
   if [[ -z $($GIT -C $repo config --get gitflow.allow-master-commit) ]]; then
     $NOOP $GIT -C $repo config gitflow.allow-master-commit false
   fi
@@ -88,11 +95,12 @@ function usage() {
   echo "Usage: $0 [options] <repository>"
   echo "Options:"
   #echo "  -r, --recursive   Inject hooks in all subfolders"
-  echo "  -h, --help        Display this help message"
-  echo "  --noop, --dry-run Do not execute any command, just display what would be done"
-  echo "  --quiet           Do not display any message"
-  echo "  -v, --verbose     Increase verbosity"
-  echo "  -y, --yes         Assume yes to all questions"
+  echo " --no-pr, --no-pull-request Do not use pull requests before finishing releases/hotfixes/features"
+  echo "  -h, --help                Display this help message"
+  echo "  --noop, --dry-run         Do not execute any command, just display what would be done"
+  echo "  --quiet                   Do not display any message"
+  echo "  -v, --verbose             Increase verbosity"
+  echo "  -y, --yes                 Assume yes to all questions"
 }
 
 function parse_args() {
@@ -133,6 +141,10 @@ function parse_args() {
       fi
     else
       case $1 in
+        --no-pr|--no-pull-request)
+          warn "The hooks will NOT use pull requests before finishing releases/hotfixes/features"
+          USE_PULL_REQUESTS=0
+          ;;
         # Standard options
         --force)
           warn "This program will force operations to be executed"
