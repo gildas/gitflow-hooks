@@ -3,6 +3,7 @@
 # Application variables
 DEFAULT_HOOKS_DIR="${DEFAULT_HOOKS_DIR:-.git/hooks}"
 REPO=
+SOURCE_PATH=
 USE_PULL_REQUESTS=1
 
 # General variables
@@ -28,6 +29,7 @@ function inject_hooks() {
   local language
   local hooks_path
   local repo=$1
+  local sources=( $2 )
 
   # 0/ validation
   is_git $repo || return $?
@@ -70,13 +72,19 @@ function inject_hooks() {
   fi
 
   # 3/ find language
-  if [[ -e $repo/sfdx-project.json ]]; then
-    language="salesForce"
-  elif [[ -e $repo/package.json ]]; then
-    language="node"
-  elif [[ -e $repo/go.mod ]]; then
-    language="go"
-  else
+  # TODO: Also handle repos with multiple languages, like go and node (wess kind of app, that have a backend and a frontend)
+  [[ -z $sources ]] && sources=( . "src" "backend" "src/backend" )
+  for source in "${sources[@]}"; do
+    if [[ -e $repo/$source/sfdx-project.json ]]; then
+      language="salesForce"
+    elif [[ -e $repo/$source/package.json ]]; then
+      language="node"
+    elif [[ -e $repo/$source/go.mod ]]; then
+      language="go"
+    fi
+    [[ -n $language ]] && break
+  done
+  if [[ -z $language ]]; then
     ERROR="Unable to find language for $repo" && return 1
   fi
   verbose "Language: $language"
@@ -95,9 +103,10 @@ function inject_hooks() {
 }
 
 function usage() {
-  echo "Usage: $0 [options] <repository>"
+  echo "Usage: $0 [options] <repository-path>"
   echo "Options:"
   #echo "  -r, --recursive   Inject hooks in all subfolders"
+  echo " --src <path>               Path to the source folder used to detect language (default: repository-path folder)"
   echo " --no-pr, --no-pull-request Do not use pull requests before finishing releases/hotfixes/features"
   echo "  -h, --help                Display this help message"
   echo "  --noop, --dry-run         Do not execute any command, just display what would be done"
@@ -187,12 +196,12 @@ function parse_args() {
 }
 
 function main() {
-  parse_args "r,recursive=RECURSIVE" "$@"
+  parse_args "r,recursive=RECURSIVE;src=SOURCE_PATH" "$@"
 
   # Set all positional arguments back in the proper order
   eval set -- "${ARGS[@]}"
 
-  inject_hooks "$1" || die "$ERROR"
+  inject_hooks "$1" "$SOURCE_PATH" || die "$ERROR"
 }
 
 main "$@"

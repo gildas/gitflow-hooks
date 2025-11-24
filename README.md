@@ -37,6 +37,14 @@ The script will check if the repository is valid and has git-flow already, if no
 
 The script also checks if your installed git-flow is the AVH edition, and stops if it is not the case.
 
+By default, the script will look for the kind of language used in the repository (Ga, Salesforce, or Node.js) and will copy the appropriate hooks. It searches in the root of the repository, then in the `src/`, `src/backend/` folders.
+
+You can also tell the scripts where to look for the code with:
+
+```bash
+./hookit --src source_folder /path/to/repo
+```
+
 ## Configuration
 
 By default, the hooks will prevent you from:
