@@ -36,11 +36,11 @@ function inject_hooks() {
   verbose "Injecting git hooks into $repo"
 
   # 1/ make sure git flow is initialized
-  if [[ -z $($GIT -C $repo config --local gitflow.allow-master-commit) ]]; then
+  if [[ -z $($GIT -C $repo config --local gitflow.branch.master) ]]; then
     verbose "Initializing git flow in repository $repo"
     $NOOP $GIT -C $repo flow init -fd --tag v
     status=$? ; (( status )) && ERROR="Error while initializing git flow in repository $REPO" && return $status
-    if [[ -z $($GIT -C $repo config --local gitflow.allow-master-commit) ]]; then
+    if [[ -z $($GIT -C $repo config --local gitflow.branch.master) ]]; then
       ERROR="git flow was not installed properly, please install it manually" && return 1
     fi
   fi
