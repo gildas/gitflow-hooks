@@ -5,6 +5,8 @@ DEFAULT_HOOKS_DIR="${DEFAULT_HOOKS_DIR:-.git/hooks}"
 REPO=
 SOURCE_PATH=
 USE_PULL_REQUESTS=1
+RECURSIVE=0
+EXCLUDES=()
 
 # General variables
 ASSUMEYES=1
@@ -105,14 +107,15 @@ function inject_hooks() {
 function usage() {
   echo "Usage: $0 [options] <repository-path>"
   echo "Options:"
-  #echo "  -r, --recursive   Inject hooks in all subfolders"
-  echo " --src <path>               Path to the source folder used to detect language (default: repository-path folder)"
-  echo " --no-pr, --no-pull-request Do not use pull requests before finishing releases/hotfixes/features"
-  echo "  -h, --help                Display this help message"
-  echo "  --noop, --dry-run         Do not execute any command, just display what would be done"
-  echo "  --quiet                   Do not display any message"
-  echo "  -v, --verbose             Increase verbosity"
-  echo "  -y, --yes                 Assume yes to all questions"
+  echo "  --src <path>               Path to the source folder used to detect language (default: repository-path folder)"
+  echo "  --no-pr, --no-pull-request Do not use pull requests before finishing releases/hotfixes/features"
+  echo "  --exclude                  Exclude pattern when used with recursive or glob, Can be repeated"
+  echo "  -r, --recursive            Inject hooks in all subfolders"
+  echo "  -h, --help                 Display this help message"
+  echo "  --noop, --dry-run          Do not execute any command, just display what would be done"
+  echo "  --quiet                    Do not display any message"
+  echo "  -v, --verbose              Increase verbosity"
+  echo "  -y, --yes                  Assume yes to all questions"
 }
 
 function parse_args() {
@@ -153,6 +156,11 @@ function parse_args() {
       fi
     else
       case $1 in
+        --exclude)
+          [[ -z $2 || ${2:0:1} == '-' ]] && die "Argument for option $1 is missing"
+          EXCLUDES+=( "$2" )
+          shift
+          ;;
         --no-pr|--no-pull-request)
           warn "The hooks will NOT use pull requests before finishing releases/hotfixes/features"
           USE_PULL_REQUESTS=0
@@ -195,13 +203,57 @@ function parse_args() {
   done
 }
 
+function match() {
+  local folder="$1"
+  shift
+
+  for pattern in "$@"; do
+    trace "    checking $folder against pattern $pattern"
+    if [[ $folder =~ $pattern ]] ; then
+      trace "    matched"
+      return 0
+    fi
+  done
+  trace "    not matched"
+  return 1
+}
+
 function main() {
   parse_args "r,recursive=RECURSIVE;src=SOURCE_PATH" "$@"
 
   # Set all positional arguments back in the proper order
   eval set -- "${ARGS[@]}"
 
-  inject_hooks "$1" "$SOURCE_PATH" || die "$ERROR"
+  folders=()
+
+  if (( RECURSIVE )); then
+    trace "Building folders from arguments"
+    trace "  Excluding [${EXCLUDES[@]}]"
+    for folder in "$@"; do
+      trace ">>> Processing $folder"
+      if match "$folder" "${EXCLUDES[@]}"; then
+        trace "$folder should be excluded"
+        continue
+      fi
+      if [[ -d $folder/.git ]]; then
+        folders+=( "$folder" )
+      fi
+      for subfolder in $(find $folder -type d -name .git); do
+        if match "$subfolder" "${EXCLUDES[@]}"; then
+          trace "$subfolder should be excluded"
+          continue
+        fi
+        subfolder="${subfolder%*/.git}"
+        folders+=( "$subfolder" )
+      done
+    done
+  else
+    folders=( "$@" )
+  fi
+  for folder in "${folders[@]}" ; do
+    title "Processing Folder: $folder"
+    inject_hooks "$folder" "$SOURCE_PATH" || die "$ERROR"
+  done
 }
 
 main "$@"
