@@ -203,19 +203,24 @@ function get_repo_type() { # {{{2
 function get_repo() { # {{{2
   local origin=$1
   local origin_url=$(git config remote.${origin}.url)
+  local status=$? ; (( status )) && return $status
   local repo
 
   if [[ $origin_url =~ ^(ssh://)?git@github\.com ]]; then
-    repo=$(echo $origin_url | sed -e 's/^(ssh:\/\/)?git@github\.com://' -e 's/\.git$//')
+    repo=$(echo $origin_url | sed -E -e 's/^(ssh:\/\/)?git@github\.com://' -e 's/\.git$//')
   elif [[ $origin_url =~ ^https://github\.com ]]; then
-    repo=$(echo $origin_url | sed -e 's/https:\/\/github\.com\///' -e 's/\.git$//')
+    repo=$(echo $origin_url | sed -E -e 's/https:\/\/github\.com\///' -e 's/\.git$//')
   elif [[ $origin_url =~ ^(ssh://)?git@bitbucket\.org ]]; then
-    repo=$(echo $origin_url | sed -e 's/^(ssh:\/\/)?git@bitbucket\.org://' -e 's/\.git$//')
+    repo=$(echo $origin_url | sed -E -e 's/^(ssh:\/\/)?git@bitbucket\.org://' -e 's/\.git$//')
   elif [[ $origin_url =~ ^https://.*bitbucket\.org ]]; then
-    repo=$(echo $origin_url | sed -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
+    repo=$(echo $origin_url | sed -E -e 's/https:\/\/.*bitbucket\.org\///' -e 's/\.git$//')
   elif [[ $origin_url =~ ^(ssh://)?git@gitlab\.com ]]; then
-    repo=$(echo $origin_url | sed -e 's/^(ssh:\/\/)?git@gitlab\.com://' -e 's/\.git$//')
+    repo=$(echo $origin_url | sed -E -e 's/^(ssh:\/\/)?git@gitlab\.com://' -e 's/\.git$//')
   else
+    return 1
+  fi
+  if [[ $repo =~ ^(ssh://)?git@ || $repo =~ ^https:// ]] ; then
+    error "Malformed repository name: \"$repo\""
     return 1
   fi
   printf "%s" $repo
@@ -228,8 +233,13 @@ function create_pull_request() { #{{{2
   local destination=$3
   local title=$4
   local body=$5
+  local status
   local repo_type=$(get_repo_type $origin)
+  status=$? ; (( status )) && return $status
+  verbose "Creating a Pull Request on a $repo_type repository"
   local repo=$(get_repo $origin)
+  status=$? ; (( status )) && error "Failed to retrieve the repository name" && return $status
+  [[ -z $repo ]] && error "Failed to retrieve repository name (empty)" && return 1
 
   verbose "Creating a Pull Request on repository $repo from $source to $destination"
   case $repo_type in
@@ -250,7 +260,9 @@ function create_pull_request() { #{{{2
       ;;
     bitbucket)
       if command -v bb &>/dev/null; then
-        local profile=$(git config bitbucket.cli.profile)
+        local profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
+        status=$? ; (( status )) && error "Failed to find the current bitbucket profile" && return $status
+        [[ -z $profile ]] && error "Failed to find the current bitbucket profile, please add it to your .git/config" && return 1
         bb ${profile:+--profile $profile} pr create \
           --title       "$title" \
           --description "$body" \
@@ -290,10 +302,16 @@ function create_pull_request() { #{{{2
 function get_pull_request_state() { # {{{2
   local origin=$1
   local branch=$2
+  local status
   local repo_type=$(get_repo_type $origin)
+  status=$? ; (( status )) && return $status
+  verbose "Getting Pull Request status on a $repo_type repository"
   local repo=$(get_repo $origin)
+  status=$? ; (( status )) && error "Failed to retrieve the repository name" && return $status
+  [[ -z $repo ]] && error "Failed to retrieve repository name (empty)" && return 1
   local state
 
+  verbose "Getting Pull Request status on repository $repo from $origin on branch $branch"
   case $repo_type in
     github)
       if command -v gh &>/dev/null; then
@@ -302,13 +320,17 @@ function get_pull_request_state() { # {{{2
       ;;
     bitbucket)
       if command -v bb &>/dev/null; then
-        local profile=$(git config bitbucket.cli.profile)
+        local profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
+        status=$? ; (( status )) && error "Failed to find the current bitbucket profile" && return $status
+        [[ -z $profile ]] && error "Failed to find the current bitbucket profile, please add it to your .git/config" && return 1
+        verbose "Using Bitbucket profile: $profile"
         state=$( \
-          bb ${profile:+--profile $profile} pr list --repository $repo --state all --output json |\
-          jq -r --arg branch $branch '
+          bb ${profile:+--profile $profile} pr list --repository "$repo" --state all --output json |\
+          jq --raw-output --exit-status --arg branch $branch '
             . |= sort_by(.updated_on) |
             last(.[] | select(.source.branch.name == $branch) | .state)'
         )
+        status=$? ; (( status )) && return $status
       fi
       ;;
     gitlab)
