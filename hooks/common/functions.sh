@@ -15,17 +15,22 @@ BOLD=$(printf '\e[1m')
 UNDERLINE=$(printf '\e[4m')
 REVERSED=$(printf '\e[7m')
 
-CHECK=$(printf ${BOLD}${GREEN}'✔'${DEFAULT})
-CROSS=$(printf ${BOLD}${RED}'✘'${DEFAULT})
+CHECK=$(printf ${BOLD}${GREEN}'✅'${DEFAULT})
+CROSS=$(printf ${BOLD}${RED}'❌'${DEFAULT})
 
 ROOT_DIR=$(git rev-parse --show-toplevel)
 
 ERROR=
 
 function color()        { echo -e "\e38;5;$0m"; }
-function verbose()      { [[ $VERBOSE > 0 ]] && echo -e "$@" >&2; }
+function title()        { local title="$@" ; local len=$((114 - ${#title})) ; local s=$(printf '𝄙%.0s' $(seq 1 $len)) ;  echo -e "\033[34;1m▶\033[0m \0033[1m$title $s\033[0m" >&2; }
+function subtitle()     { echo -e "\033[34;1m▶\033[0m \0033[1m$@\033[0m" >&2; }
+function success()      { echo -e "${GREEN}${CHECK} $@${OFF}" >&2; }
+function failure()      { echo -e "${RED}${CROSS} $@${OFF}" >&2; }
 function success()      { echo -e "${CHECK} $@" >&2 ; }
-function warn()         { echo -e "${YELLOW}Warning: $@${DEFAULT}" >&2; }
+function trace()        { (( VERBOSE > 1 )) && echo -e "$@" >&2; }
+function verbose()      { (( VERBOSE > 0 )) && echo -e "$@" >&2; }
+function warn()         { echo -e "${ORANGE}Warning: $@${DEFAULT}" >&2; }
 function error()        { echo -e "${CROSS} ${RED}Error: $@${DEFAULT}" >&2; }
 function die()          { error "${1:-${ERROR:-Unknown Error}}, Error: ${2:-1}" ; exit ${2:-1} ; }
 function die_on_error() { local status=$? ; (( status )) && die "$@" $status; }
