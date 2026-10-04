@@ -37,3 +37,30 @@ function update_version_file() { # {{{2
   fi
   return 0
 } # 2}}}
+
+# lint_staged_files runs golangci-lint and staticcheck on the packages of the staged Go files
+function lint_staged_files() { # {{{2
+  local status
+  local files=( $(git diff --cached --name-only --diff-filter=ACMR -- '*.go') )
+  (( ${#files[@]} )) || return 0
+  local packages=( $(for file in "${files[@]}"; do printf "./%s\n" "$(dirname "$file")"; done | sort -u) )
+
+  if command -v golangci-lint &>/dev/null; then
+    golangci-lint run "${packages[@]}"
+    status=$?
+    (( status )) && ERROR="The golangci-lint tool found issues" && return 1
+    (( ! status )) && verbose "The golangci-lint tool found no issues"
+  else
+    warn "golangci-lint is not installed, skipping"
+  fi
+
+  if command -v staticcheck &>/dev/null; then
+    staticcheck "${packages[@]}"
+    status=$?
+    (( status )) && ERROR="The staticcheck tool found issues" && return 1
+    (( ! status )) && verbose "The staticcheck tool found no issues"
+  else
+    warn "staticcheck is not installed, skipping"
+  fi
+  return 0
+} # 2}}}

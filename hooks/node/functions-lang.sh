@@ -36,3 +36,34 @@ function update_version_file() { # {{{2
   fi
   return 0
 } # 2}}}
+
+# find_package_dir prints the closest folder containing a package.json for the given file
+function find_package_dir() { # {{{2
+  local dir=$(dirname "$ROOT_DIR/$1")
+
+  while [[ $dir != / && ! -f $dir/package.json ]]; do dir=$(dirname "$dir"); done
+  [[ -f $dir/package.json ]] && printf "%s\n" "$dir"
+} # 2}}}
+
+# lint_staged_files runs the project's eslint on the staged JavaScript/TypeScript files
+function lint_staged_files() { # {{{2
+  local files=( $(git diff --cached --name-only --diff-filter=ACMR -- '*.js' '*.jsx' '*.mjs' '*.cjs' '*.ts' '*.tsx' '*.mts' '*.cts') )
+  (( ${#files[@]} )) || return 0
+  local projects=( $(for file in "${files[@]}"; do find_package_dir "$file"; done | sort -u) )
+  local project file eslint project_files
+
+  for project in "${projects[@]}"; do
+    eslint="$project/node_modules/.bin/eslint"
+    if [[ ! -x $eslint ]]; then
+      warn "eslint is not installed in ${project#$ROOT_DIR/}, skipping"
+      continue
+    fi
+    project_files=()
+    for file in "${files[@]}"; do
+      [[ $(find_package_dir "$file") == $project ]] && project_files+=( "$ROOT_DIR/$file" )
+    done
+    (cd "$project" && "$eslint" "${project_files[@]}")
+    (( $? )) && ERROR="The eslint tool found issues" && return 1
+  done
+  return 0
+} # 2}}}

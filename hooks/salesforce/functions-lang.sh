@@ -70,3 +70,20 @@ function bump_version() { # {{{2
   return 0
 } # 2}}}
 
+
+# lint_staged_files runs the project's eslint on the staged LWC/Aura JavaScript files
+function lint_staged_files() { # {{{2
+  local files=( $(git diff --cached --name-only --diff-filter=ACMR -- '*.js') )
+  (( ${#files[@]} )) || return 0
+  local dir=$(dirname "$ROOT_DIR/${files[0]}")
+
+  while [[ $dir != / && ! -f $dir/sfdx-project.json ]]; do dir=$(dirname "$dir"); done
+  local eslint="$dir/node_modules/.bin/eslint"
+  if [[ ! -x $eslint ]]; then
+    warn "eslint is not installed in the Salesforce project, skipping"
+    return 0
+  fi
+  (cd "$dir" && "$eslint" "${files[@]/#/$ROOT_DIR/}")
+  (( $? )) && ERROR="The eslint tool found issues" && return 1
+  return 0
+} # 2}}}

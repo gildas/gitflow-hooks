@@ -6,6 +6,7 @@ if [[ -z $HOOKS_DIR ]]; then
   HOOKS_DIR=$(dirname $HOOKS_DIR)
 fi
 source "$HOOKS_DIR"/functions.sh
+[[ -f "$HOOKS_DIR"/functions-lang.sh ]] && source "$HOOKS_DIR"/functions-lang.sh
 
 verbose "Hook: pre-commit"
 
@@ -54,5 +55,11 @@ if get_config_bool gitflow.prettify true; then
   (( stop_processing )) && die "Fix the formatting errors and try again"
 fi
 
+if get_config_bool gitflow.must-pass-lint true; then
+  if declare -F lint_staged_files &>/dev/null; then
+    lint_staged_files
+    die_on_error "$ERROR \nFix the lint errors and try again"
+  fi
+fi
 
 exit 0

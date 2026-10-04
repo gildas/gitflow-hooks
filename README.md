@@ -22,7 +22,8 @@ Then, from its folder, you just run the deployment script, pointing it at the ta
 
 ```bash
 ./hook-it /path/to/repo
-```  
+```
+
 On Windows:
 
 ```posh
@@ -51,6 +52,7 @@ By default, the hooks will prevent you from:
 
 - committing anything to the master branch
 - committing anything that has unresolved merge conflicts
+- committing code that is not linted ([Go](https://go.dev) with [golangci-lint](https://golangci-lint.run) and [staticcheck](https://staticcheck.io), [Node.js](https://nodejs.org) and [Salesforce](https://developer.salesforce.com) LWC/Aura with the project's [ESLint](https://eslint.org)). Missing linters are skipped with a warning.
 - force Pull Request usage
 
 In case you do not want either of these features, you can turn them off with:
@@ -58,6 +60,7 @@ In case you do not want either of these features, you can turn them off with:
 ```bash
 git config --bool gitflow.allow-master-commit true
 git config --bool gitflow.allow-conflict-commit true
+git config --bool gitflow.must-pass-lint false
 git config --bool gitflow.use-pull-request false
 ```
 
@@ -88,6 +91,7 @@ The scripts will also bump the Helm Chart version if it is present. You can conf
 ```bash
 git config gitflow.path.chart path/to/chart
 ```
+
 The default location is: `chart/`
 
 You can turn off the chart feature with:
@@ -117,7 +121,6 @@ You can turn off the Appveyor feature with:
 ```bash
 git config --bool gitflow.bump-appveyor false
 ```
-
 
 ## Usage
 
@@ -196,4 +199,3 @@ Maybe having some in-repository code that would allow the hooks to update to the
 Thanks to [Peter van der Does](https://github.com/petervanderdoes) and [Jasper N. Brouwer](https://github.com/jaspernbrouwer) for their git flow hooks examples (resp. [petervanderdoes/gitflow-avh](https://github.com/petervanderdoes/gitflow-avh), [jaspernbrouwer/git-flow-hooks](https://github.com/jaspernbrouwer/git-flow-hooks)) that inspired me.
 
 Of course, we wouldn't have any git flow without [Vincent Driessen](https://nvie.com/about) and his inspiring blog post [A successful Git branching model](https://nvie.com/posts/a-successful-git-branching-model) about 10 years ago...
-
