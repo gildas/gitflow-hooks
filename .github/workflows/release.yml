@@ -1,0 +1,139 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  # Allows building the binaries without releasing them
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check-version:
+    name: Check version
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Compare the tag with Cargo.toml
+        run: |
+          version=$(sed -nE 's/^version = "(.*)"/\1/p' Cargo.toml | head -1)
+          if [[ "v$version" != "$GITHUB_REF_NAME" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match version $version in Cargo.toml"
+            exit 1
+          fi
+
+  build:
+    name: Build ${{ matrix.target }}
+    needs: check-version
+    # Run even when check-version is skipped (workflow_dispatch), but not when it failed
+    if: ${{ !failure() && !cancelled() }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-musl
+            platform: linux
+            arch: amd64
+            deb_arch: amd64
+            rpm_arch: x86_64
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-musl
+            platform: linux
+            arch: arm64
+            deb_arch: arm64
+            rpm_arch: aarch64
+            os: ubuntu-24.04-arm
+          - target: x86_64-apple-darwin
+            platform: darwin
+            arch: amd64
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            platform: darwin
+            arch: arm64
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            platform: windows
+            arch: amd64
+            os: windows-latest
+          # Cross-compiled, the runner has the MSVC ARM64 build tools
+          - target: aarch64-pc-windows-msvc
+            platform: windows
+            arch: arm64
+            os: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install musl tools
+        if: contains(matrix.target, 'musl')
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+
+      - name: Install the Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Package
+        shell: bash
+        run: |
+          # Windows archives use dashes, the others use underscores
+          if [[ "${{ runner.os }}" == "Windows" ]]; then sep="-"; else sep="_"; fi
+          name="gitflow-hooks${sep}${GITHUB_REF_NAME}${sep}${{ matrix.platform }}${sep}${{ matrix.arch }}"
+          mkdir -p "dist/$name"
+          cp README.md LICENSE "dist/$name/"
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            cp "target/${{ matrix.target }}/release/hook-it.exe" "dist/$name/"
+            (cd dist && 7z a "$name.zip" "$name" > /dev/null)
+          else
+            cp "target/${{ matrix.target }}/release/hook-it" "dist/$name/"
+            tar -C dist -czf "dist/$name.tar.gz" "$name"
+          fi
+          rm -rf "dist/$name"
+
+      - name: Install the packaging tools
+        if: runner.os == 'Linux'
+        run: cargo install --locked cargo-deb cargo-generate-rpm
+
+      - name: Build the Debian and RPM packages
+        if: runner.os == 'Linux'
+        run: |
+          version=$(sed -nE 's/^version = "(.*)"/\1/p' Cargo.toml | head -1)
+          cargo deb --no-build --target ${{ matrix.target }} --output "dist/gitflow-hooks_${version}-1_${{ matrix.deb_arch }}.deb"
+          cargo generate-rpm --target ${{ matrix.target }} --output "dist/gitflow-hooks-${version}-1.${{ matrix.rpm_arch }}.rpm"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: gitflow-hooks-${{ matrix.platform }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  release:
+    name: Release
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Compute checksums
+        run: cd dist && sha256sum * > SHA256SUMS
+
+      - name: Create the release and attach the binaries
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/* --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --title "$GITHUB_REF_NAME" --generate-notes --verify-tag
+          fi

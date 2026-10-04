@@ -16,11 +16,66 @@ The version of the target repository is assumed to follow the [semver](https://s
 
 ## Installation
 
-Build and install the `hook-it` application with [cargo](https://doc.rust-lang.org/cargo/) from this project's folder:
+### Linux
+
+You can grab the latest binary package on the [Downloads](https://github.com/gildas/gitflow-hooks/releases) pages.
+
+On Debian/Ubuntu distributions, you can use my package repository. First download the signing key:
+
+```bash
+curl -fsSL https://gildas.github.io/apt/gildas-archive-keyring.gpg | \
+  sudo tee /usr/share/keyrings/gildas-archive-keyring.gpg >/dev/null
+```
+
+Add this source:
+
+```bash
+echo "deb [arch=amd64,arm64 signed-by=/usr/share/keyrings/gildas-archive-keyring.gpg] https://gildas.github.io/apt stable main" | sudo tee /etc/apt/sources.list.d/gildas.list
+sudo apt update
+```
+
+Then install `gitflow-hooks` with:
+
+```bash
+sudo apt install gitflow-hooks
+```
+
+If you use [Homebrew](https://brew.sh), you can install `gitflow-hooks` with:
+
+```bash
+brew install gildas/tap/gitflow-hooks
+```
+
+### macOS
+
+You can get `gitflow-hooks` from [Homebrew](https://brew.sh) with:
+
+```bash
+brew install gildas/tap/gitflow-hooks
+```
+
+You can also download the archive for your platform from the [releases](https://github.com/gildas/gitflow-hooks/releases) page and install it manually.
+
+### Windows
+
+You can install `gitflow-hooks` with [scoop](https://scoop.sh):
+
+```bash
+scoop bucket add gildas https://github.com/gildas/scoop-bucket
+scoop install gitflow-hooks
+```
+
+You can also download the archive for your platform from the [releases](https://github.com/gildas/gitflow-hooks/releases) page and install it manually.
+
+### Source code
+
+You can also build and install the `hook-it` application with [cargo](https://doc.rust-lang.org/cargo/) from this project's folder:
 
 ```bash
 cargo install --path .
 ```
+
+## Usage
 
 The hooks are embedded in the binary, so `hook-it` is the only file to ship to users, and it runs from anywhere (Linux, macOS, and Windows). Point it at the target repository:
 
@@ -126,7 +181,7 @@ You can turn off the Appveyor feature with:
 git config --bool gitflow.bump-appveyor false
 ```
 
-## Usage
+## Usage in Target Repository
 
 Once the hooks are initialized, everything can be done in the target repository folder.
 
@@ -187,10 +242,6 @@ You do not need to repeat the version when finishing the release/hotfix if you a
 
 As stated earlier, if the repository has a "chart" folder, the scripts will update the "appVersion" accordingly as well.
 They will also bump the chart version according to the same rules used for the application version.
-
-## Hooks Update
-
-Whenever there is an update to this repository, rebuild `hook-it` (`cargo install --path .`) and re-run it to update the target repositories.
 
 ## TODO
 
