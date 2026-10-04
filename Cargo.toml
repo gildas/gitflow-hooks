@@ -1,0 +1,46 @@
+[package]
+name = "hook-it"
+version = "1.4.0"
+edition = "2024"
+description = "Installs git flow (AVH edition) hooks in git repositories"
+authors = ["Gildas Cherruel <gildas@breizh.org>"]
+license = "MIT"
+repository = "https://github.com/gildas/gitflow-hooks"
+readme = "README.md"
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+include_dir = "0.7.4"
+regex = "1.13.1"
+walkdir = "2.5.0"
+
+[profile.release]
+strip = true
+
+[package.metadata.deb]
+name = "gitflow-hooks"
+section = "vcs"
+extended-description = "hook-it injects git flow (AVH edition) hooks in git repositories: version bumping, pull requests for features, releases and hotfixes, formatting and linting before commits (Go, Node.js, Salesforce)."
+license-file = ["LICENSE", "0"]
+# The binary is static (musl), the hooks need git and git-flow AVH (packaged as git-flow in Debian)
+depends = "git, bash"
+recommends = "git-flow"
+assets = [
+  ["target/release/hook-it", "usr/bin/", "755"],
+  ["README.md", "usr/share/doc/gitflow-hooks/", "644"],
+]
+
+[package.metadata.generate-rpm]
+name = "gitflow-hooks"
+assets = [
+  { source = "target/release/hook-it", dest = "/usr/bin/hook-it", mode = "755" },
+  { source = "README.md", dest = "/usr/share/doc/gitflow-hooks/README.md", mode = "644", doc = true },
+  { source = "LICENSE", dest = "/usr/share/licenses/gitflow-hooks/LICENSE", mode = "644" },
+]
+
+[package.metadata.generate-rpm.requires]
+git = "*"
+bash = "*"
+
+[package.metadata.generate-rpm.recommends]
+gitflow = "*"

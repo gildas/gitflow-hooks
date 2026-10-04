@@ -16,35 +16,39 @@ The version of the target repository is assumed to follow the [semver](https://s
 
 ## Installation
 
-First, you should `git clone` this project.
-
-Then, from its folder, you just run the deployment script, pointing it at the target repository:  
+Build and install the `hook-it` application with [cargo](https://doc.rust-lang.org/cargo/) from this project's folder:
 
 ```bash
-./hook-it /path/to/repo
+cargo install --path .
 ```
 
-On Windows:
-
-```posh
-.\hook-it.ps1 -Path /path/to/repo
-```
-
-The Bash script supports the `-v` switch to display more information and the `-n` switch to see what would be executed. Check the script's help with `./hook-it -h`.
-
-The PowerShell script support the `-Verbose` switch to display more information and the `-WhatIf` switch to see what would be executed. Check the script's help with `Get-Help .\hook-it.ps1`.
-
-The script will check if the repository is valid and has git-flow already, if not it will try to initialize it in the repository.
-
-The script also checks if your installed git-flow is the AVH edition, and stops if it is not the case.
-
-By default, the script will look for the kind of language used in the repository (Ga, Salesforce, or Node.js) and will copy the appropriate hooks. It searches in the root of the repository, then in the `src/`, `src/backend/` folders.
-
-You can also tell the scripts where to look for the code with:
+The hooks are embedded in the binary, so `hook-it` is the only file to ship to users, and it runs from anywhere (Linux, macOS, and Windows). Point it at the target repository:
 
 ```bash
-./hookit --src source_folder /path/to/repo
+hook-it /path/to/repo
 ```
+
+Use `-v` to display more information and `--noop` (or `--dry-run`) to see what would be done without modifying anything. Check all the options with `hook-it --help`.
+
+`hook-it` checks that the repository is valid and has git-flow already; if not, it tries to initialize git-flow in the repository.
+
+It also checks that your installed git-flow is the AVH edition, and stops if it is not the case.
+
+By default, `hook-it` looks for the kind of language used in the repository (Go, Salesforce, or Node.js) and copies the appropriate hooks. It searches in the root of the repository, then in the `src/`, `backend/`, and `src/backend/` folders.
+
+You can also tell `hook-it` where to look for the code with (it can be repeated):
+
+```bash
+hook-it --src source_folder /path/to/repo
+```
+
+To inject the hooks in all the repositories found in a folder, use `--recursive`, optionally with `--exclude` regular expressions:
+
+```bash
+hook-it --recursive --exclude archive ~/Projects
+```
+
+While editing the hooks, `--hooks-dir hooks` copies them from that folder instead of the embedded ones. Run `cargo install --path .` again to embed the new versions.
 
 ## Configuration
 
@@ -186,7 +190,7 @@ They will also bump the chart version according to the same rules used for the a
 
 ## Hooks Update
 
-Whenever there is an update to this repository, simply re-run the `hook-it` script to update the target repositories.
+Whenever there is an update to this repository, rebuild `hook-it` (`cargo install --path .`) and re-run it to update the target repositories.
 
 ## TODO
 

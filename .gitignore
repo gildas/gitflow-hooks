@@ -28,3 +28,5 @@ log/
 # VSCode
 .vscode/
 /.project
+# Rust build output
+/target
