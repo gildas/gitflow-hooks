@@ -78,7 +78,7 @@ function inject_hooks() {
   [[ -z $sources ]] && sources=( . "src" "backend" "src/backend" )
   for source in "${sources[@]}"; do
     if [[ -e $repo/$source/sfdx-project.json ]]; then
-      language="salesForce"
+      language="salesforce"
     elif [[ -e $repo/$source/package.json ]]; then
       language="node"
     elif [[ -e $repo/$source/go.mod ]]; then
