@@ -67,3 +67,27 @@ function lint_staged_files() { # {{{2
   done
   return 0
 } # 2}}}
+
+# prettify_staged_files formats the staged files with the project's prettier, if any
+function prettify_staged_files() { # {{{2
+  local files=( $(git diff --cached --name-only --diff-filter=ACMR) )
+  (( ${#files[@]} )) || return 0
+  local projects=( $(for file in "${files[@]}"; do find_package_dir "$file"; done | sort -u) )
+  local project file prettier project_files
+
+  for project in "${projects[@]}"; do
+    prettier="$project/node_modules/.bin/prettier"
+    if [[ ! -x $prettier ]]; then
+      verbose "prettier is not installed in ${project#$ROOT_DIR/}, skipping"
+      continue
+    fi
+    project_files=()
+    for file in "${files[@]}"; do
+      [[ $(find_package_dir "$file") == $project ]] && project_files+=( "$ROOT_DIR/$file" )
+    done
+    (cd "$project" && "$prettier" --write --ignore-unknown --log-level warn "${project_files[@]}")
+    (( $? )) && ERROR="The prettier tool could not format some files" && return 1
+    git add "${project_files[@]}"
+  done
+  return 0
+} # 2}}}

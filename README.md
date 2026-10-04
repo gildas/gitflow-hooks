@@ -66,7 +66,7 @@ git config --bool gitflow.use-pull-request false
 
 The hooks will also:
 
-- format the code with [gofmt](https://pkg.go.dev/cmd/gofmt) for [Go](https://go.dev) changes
+- format the code with [gofmt](https://pkg.go.dev/cmd/gofmt) for [Go](https://go.dev) changes, and with the project's [Prettier](https://prettier.io) for [Node.js](https://nodejs.org) and [Salesforce](https://developer.salesforce.com) changes (skipped if Prettier is not installed)
 
 Similarly, you can turn off the formatting feature with:
 

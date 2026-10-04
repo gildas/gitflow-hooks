@@ -64,3 +64,29 @@ function lint_staged_files() { # {{{2
   fi
   return 0
 } # 2}}}
+
+# prettify_staged_files formats the staged Go files with gofmt
+function prettify_staged_files() { # {{{2
+  local files=( $(git diff --cached --name-only --diff-filter=ACMR -- '*.go') )
+  (( ${#files[@]} )) || return 0
+  local gofmt=$(command -v gofmt)
+  local file output stop_processing=0
+
+  if [[ -z $gofmt ]]; then
+    gofmt=$GOROOT/bin/gofmt
+    [[ ! -e $gofmt ]] && ERROR="The gofmt tool is missing" && return 1
+  fi
+
+  for file in "${files[@]}"; do
+    output=$($gofmt -s -w "$file")
+    # Any output from gofmt indicates a problem
+    if [[ -n $output ]]; then
+      error "$file is not formatted properly: $output"
+      stop_processing=1
+    else
+      git add "$file"
+    fi
+  done
+  (( stop_processing )) && ERROR="gofmt could not format some files" && return 1
+  return 0
+} # 2}}}
