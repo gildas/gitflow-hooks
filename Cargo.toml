@@ -1,6 +1,6 @@
 [package]
 name = "hook-it"
-version = "1.4.0"
+version = "1.4.1"
 edition = "2024"
 description = "Installs git flow (AVH edition) hooks in git repositories"
 authors = ["Gildas Cherruel <gildas@breizh.org>"]
