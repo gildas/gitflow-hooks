@@ -285,7 +285,7 @@ function create_pull_request() { #{{{2
       if command -v glab &> /dev/null; then
         glab mr create \
           --title         "$title" \
-          --description   "$description" \
+          --description   "$body" \
           --source-branch $source \
           --target-branch $destination \
           --yes
