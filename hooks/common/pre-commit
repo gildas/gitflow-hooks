@@ -11,9 +11,8 @@ source "$HOOKS_DIR"/functions.sh
 verbose "Hook: pre-commit"
 
 if ! get_config_bool gitflow.allow-master-commit; then
-  MASTER=$(git config --get gitflow.branch.master)
   BRANCH=$(git symbolic-ref HEAD)
-  [[ $BRANCH == "refs/heads/$MASTER" ]] && die "Direct commits to the $MASTER branch are forbidden"
+  [[ $BRANCH == "refs/heads/$MASTER_BRANCH" ]] && die "Direct commits to the $MASTER_BRANCH branch are forbidden"
 fi
 
 # Check if there is any merge that is not resolved in the files to commit

@@ -10,7 +10,7 @@ Here are some sample repositories for [GitHub](https://github.com), [BitBucket](
 
 ## Pre-Requisites
 
-The hooks from this repository will work only with [git flow AVH Edition](https://github.com/petervanderdoes/gitflow-avh). The basic git-flow does not handle git hooks. Make sure to [install](https://github.com/petervanderdoes/gitflow-avh/wiki/Installation) the proper version!
+The hooks from this repository work with [git-flow-next](https://git-flow.sh) (`brew install git-flow-next` on macOS) or [git flow AVH Edition](https://github.com/petervanderdoes/gitflow-avh), which is not maintained anymore. The original git-flow does not handle git hooks. Make sure to install one of these!
 
 The version of the target repository is assumed to follow the [semver](https://semver.org) specifications.
 
@@ -87,7 +87,7 @@ Use `-v` to display more information and `--noop` (or `--dry-run`) to see what w
 
 `hook-it` checks that the repository is valid and has git-flow already; if not, it tries to initialize git-flow in the repository.
 
-It also checks that your installed git-flow is the AVH edition, and stops if it is not the case.
+It also checks that your installed git-flow is git-flow-next or the AVH edition, and stops if it is not the case.
 
 By default, `hook-it` looks for the kind of language used in the repository (Go, Salesforce, or Node.js) and copies the appropriate hooks. It searches in the root of the repository, then in the `src/`, `backend/`, and `src/backend/` folders.
 

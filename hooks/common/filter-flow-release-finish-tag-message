@@ -26,8 +26,16 @@ source "$HOOKS_DIR"/functions.sh
 
 verbose "Hook: filter-flow-release-finish-tag-message"
 
+if is_git_flow_next; then
+  # git-flow-next gives the version first, then the message,
+  # and it does not use gitflow.release.finish.message for its default message
+  VERSION=$1
+  MESSAGE=$2
+  [[ $MESSAGE == "Tagging version "* ]] && MESSAGE=$(get_config gitflow.release.finish.message "$MESSAGE")
+fi
+
 # Remove the version prefix (v), just in case...
-VERSION_TAG=$(get_config gitflow.prefix.versiontag)
+VERSION_TAG=$(get_version_tag)
 [[ -n $VERSION_TAG ]] && VERSION=${VERSION##*$VERSION_TAG}
 VERSION_TAG_PLACEHOLDER=$(get_config gitflow.message.versiontag "%tag%")
 MESSAGE=$(echo "$MESSAGE" | sed "s/$VERSION_TAG_PLACEHOLDER/$VERSION/g")

@@ -38,7 +38,7 @@ function die_on_error() { local status=$? ; (( status )) && die "$@" $status; }
 # Remove the version prefix, if any
 function normalize_version() { # {{{2
   local version=$1
-  local version_tag=$(get_config gitflow.prefix.versiontag)
+  local version_tag=$(get_version_tag)
 
   [[ -n $version_tag ]] && printf "%s" ${version##*$version_tag} || printf "%s" $version
 } # 2}}}
@@ -97,6 +97,66 @@ function get_config() { # {{{2
     printf "%s" "$default"
   fi
   return 0
+} # 2}}}
+
+# is_git_flow_next tells if the git flow in use is git-flow-next (and not git flow AVH)
+function is_git_flow_next() { # {{{2
+  if [[ -z $GIT_FLOW_FLAVOR ]]; then
+    [[ $(git flow version 2>/dev/null) == *git-flow-next* ]] && GIT_FLOW_FLAVOR=next || GIT_FLOW_FLAVOR=avh
+  fi
+  [[ $GIT_FLOW_FLAVOR == next ]]
+} # 2}}}
+
+# has_git_flow_next_config tells if the repository is configured by git-flow-next (gitflow.branch.<name>.type keys)
+#
+# Its configuration wins over the git flow AVH one, which can come from the global git config
+function has_git_flow_next_config() { # {{{2
+  git config --get-regexp '^gitflow\.branch\..*\.type$' &>/dev/null
+} # 2}}}
+
+# get_master_branch prints the production branch
+#
+# git flow AVH stores it in gitflow.branch.master,
+# git-flow-next stores it as the base branch without a parent (gitflow.branch.<name>.type = base)
+function get_master_branch() { # {{{2
+  local key name
+
+  if ! has_git_flow_next_config; then
+    git config --get gitflow.branch.master
+    return 0
+  fi
+  for key in $(git config --get-regexp '^gitflow\.branch\..*\.type$' | awk '$2 == "base" {print $1}'); do
+    name=${key#gitflow.branch.}
+    name=${name%.type}
+    if [[ -z $(git config --get "gitflow.branch.$name.parent") ]]; then
+      printf "%s" "$name"
+      return 0
+    fi
+  done
+} # 2}}}
+
+# get_develop_branch prints the development branch
+#
+# git flow AVH stores it in gitflow.branch.develop,
+# git-flow-next stores it as the parent of the feature branches
+function get_develop_branch() { # {{{2
+  if has_git_flow_next_config; then
+    git config --get gitflow.branch.feature.parent
+  else
+    git config --get gitflow.branch.develop
+  fi
+} # 2}}}
+
+# get_version_tag prints the prefix of the version tags (like v)
+#
+# git flow AVH stores it in gitflow.prefix.versiontag,
+# git-flow-next stores it per branch type (gitflow.branch.release.tagprefix)
+function get_version_tag() { # {{{2
+  if has_git_flow_next_config; then
+    git config --get gitflow.branch.release.tagprefix
+  else
+    git config --get gitflow.prefix.versiontag
+  fi
 } # 2}}}
 
 function get_chart_version() { # {{{2
@@ -347,6 +407,10 @@ function get_pull_request_state() { # {{{2
   printf "%s" $state
   return 0
 } # 2}}}
+
+# git flow AVH exports MASTER_BRANCH and DEVELOP_BRANCH to the hooks, git-flow-next does not
+[[ -z $MASTER_BRANCH ]]  && MASTER_BRANCH=$(get_master_branch)
+[[ -z $DEVELOP_BRANCH ]] && DEVELOP_BRANCH=$(get_develop_branch)
 
 # Set the VERBOSE variable via environment or configuration
 if [[ $VERBOSE == 0 ]]; then

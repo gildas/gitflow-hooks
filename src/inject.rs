@@ -45,6 +45,13 @@ impl Language {
     }
 }
 
+/// The git flow implementations supporting hooks
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Flavor {
+    Avh,
+    Next,
+}
+
 pub struct Injector {
     /// The git executable
     pub git: String,
@@ -73,17 +80,16 @@ impl Injector {
             .map_err(|err| format!("Failed to resolve {}: {err}", repo.display()))?;
         verbose!("Injecting git hooks into {}", repo.display());
 
-        // 1/ make sure git flow is initialized
-        if self.git_get(repo, &["config", "--local", "gitflow.branch.master"])?.is_empty() {
+        // 1/ make sure git flow is installed and initialized
+        let flavor = self.git_flow_flavor(repo)?;
+        verbose!("git flow: {flavor:?}");
+        if !self.is_git_flow_initialized(repo)? {
             verbose!("Initializing git flow in repository {}", repo.display());
             self.git_run(repo, &["flow", "init", "-fd", "--tag", "v"])
                 .map_err(|err| format!("Error while initializing git flow in repository {}: {err}", repo.display()))?;
-            if !self.noop && self.git_get(repo, &["config", "--local", "gitflow.branch.master"])?.is_empty() {
+            if !self.noop && !self.is_git_flow_initialized(repo)? {
                 return Err("git flow was not installed properly, please install it manually".into());
             }
-        }
-        if !self.noop && self.git_get(repo, &["config", "--local", "gitflow.path.hooks"])?.is_empty() {
-            return Err("git flow AVH edition is needed for this to work".into());
         }
         // Resetting the hooks folder, in case the repo was moved
         let hooks_path = repo.join(&self.hooks_dir);
@@ -94,6 +100,14 @@ impl Injector {
         let use_pull_requests = if self.use_pull_requests { "true" } else { "false" };
         self.git_config(repo, "gitflow.path.hooks", &hooks_path_str)?;
         self.git_config(repo, "gitflow.prefix.versiontag", "v")?;
+        if flavor == Flavor::Next {
+            // git-flow-next stores the tag prefix per branch type
+            self.git_config(repo, "gitflow.branch.release.tagprefix", "v")?;
+            self.git_config(repo, "gitflow.branch.hotfix.tagprefix", "v")?;
+            // Like git flow AVH, always create a merge commit when finishing releases and hotfixes
+            self.git_config(repo, "gitflow.release.finish.no-ff", "true")?;
+            self.git_config(repo, "gitflow.hotfix.finish.no-ff", "true")?;
+        }
         self.git_config(repo, "gitflow.hotfix.finish.message", "Hotfix %tag%")?;
         self.git_config(repo, "gitflow.release.finish.message", "Release %tag%")?;
         self.git_config(repo, "gitflow.use-pull-request", use_pull_requests)?;
@@ -131,6 +145,24 @@ impl Injector {
                 .map_err(|err| format!("Error while copying {folder} hooks to {}: {err}", hooks_path.display()))?;
         }
         Ok(())
+    }
+
+    /// Finds which git flow is installed, only git flow AVH and git-flow-next support hooks
+    fn git_flow_flavor(&self, repo: &Path) -> Result<Flavor, String> {
+        let version = self.git_get(repo, &["flow", "version"])?;
+        if version.contains("AVH") {
+            Ok(Flavor::Avh)
+        } else if version.contains("git-flow-next") {
+            Ok(Flavor::Next)
+        } else {
+            Err("git flow AVH edition or git-flow-next is needed for this to work".into())
+        }
+    }
+
+    /// Tells if git flow is initialized, git flow AVH sets gitflow.branch.master, git-flow-next sets gitflow.initialized
+    fn is_git_flow_initialized(&self, repo: &Path) -> Result<bool, String> {
+        Ok(!self.git_get(repo, &["config", "--local", "gitflow.branch.master"])?.is_empty()
+            || self.git_get(repo, &["config", "--local", "--bool", "gitflow.initialized"])? == "true")
     }
 
     /// Copies the hooks of the given folder (common or a language) into the hooks path
