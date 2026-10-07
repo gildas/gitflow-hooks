@@ -46,19 +46,21 @@ function lint_staged_files() { # {{{2
   local packages=( $(for file in "${files[@]}"; do printf "./%s\n" "$(dirname "$file")"; done | sort -u) )
 
   if command -v golangci-lint &>/dev/null; then
+    verbose "Running golangci-lint on the following packages: ${packages[*]}"
     golangci-lint run "${packages[@]}"
     status=$?
     (( status )) && ERROR="The golangci-lint tool found issues" && return 1
-    (( ! status )) && verbose "The golangci-lint tool found no issues"
+    (( ! status )) && success "The golangci-lint tool found no issues"
   else
     warn "golangci-lint is not installed, skipping"
   fi
 
   if command -v staticcheck &>/dev/null; then
+    verbose "Running staticcheck on the following packages: ${packages[*]}"
     staticcheck "${packages[@]}"
     status=$?
     (( status )) && ERROR="The staticcheck tool found issues" && return 1
-    (( ! status )) && verbose "The staticcheck tool found no issues"
+    (( ! status )) && success "The staticcheck tool found no issues"
   else
     warn "staticcheck is not installed, skipping"
   fi
