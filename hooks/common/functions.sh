@@ -252,6 +252,8 @@ function get_repo_type() { # {{{2
     repo_type="github"
   elif [[ $origin_url =~ ^https://github\.com ]]; then
     repo_type="github"
+  elif [[ $origin_url =~ ^(ssh://)?git@ssh\.bitbucket\.org ]]; then
+    repo_type="bitbucket"
   elif [[ $origin_url =~ ^(ssh://)?git@bitbucket\.org ]]; then
     repo_type="bitbucket"
   elif [[ $origin_url =~ ^https://.*bitbucket\.org ]]; then
@@ -275,6 +277,8 @@ function get_repo() { # {{{2
     repo=$(echo $origin_url | sed -E -e 's/^(ssh:\/\/)?git@github\.com://' -e 's/\.git$//')
   elif [[ $origin_url =~ ^https://github\.com ]]; then
     repo=$(echo $origin_url | sed -E -e 's/https:\/\/github\.com\///' -e 's/\.git$//')
+  elif [[ $origin_url =~ ^(ssh://)?git@ssh\.bitbucket\.org ]]; then
+    repo=$(echo $origin_url | sed -E -e 's/^(ssh:\/\/)?git@ssh\.bitbucket\.org://' -e 's/\.git$//')
   elif [[ $origin_url =~ ^(ssh://)?git@bitbucket\.org ]]; then
     repo=$(echo $origin_url | sed -E -e 's/^(ssh:\/\/)?git@bitbucket\.org://' -e 's/\.git$//')
   elif [[ $origin_url =~ ^https://.*bitbucket\.org ]]; then
