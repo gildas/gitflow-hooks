@@ -1,21 +1,12 @@
 [package]
 name = "hook-it"
-version = "1.4.1"
+version = "1.4.2"
 edition = "2024"
 description = "Installs git flow (AVH edition) hooks in git repositories"
 authors = ["Gildas Cherruel <gildas@breizh.org>"]
 license = "MIT"
 repository = "https://github.com/gildas/gitflow-hooks"
 readme = "README.md"
-
-[dependencies]
-clap = { version = "4.6.7", features = ["derive"] }
-include_dir = "0.7.4"
-regex = "1.13.1"
-walkdir = "2.5.0"
-
-[profile.release]
-strip = true
 
 [package.metadata.deb]
 name = "gitflow-hooks"
@@ -44,3 +35,12 @@ bash = "*"
 
 [package.metadata.generate-rpm.recommends]
 gitflow = "*"
+
+[dependencies]
+clap = { version = "4.6.7", features = ["derive"] }
+include_dir = "0.7.4"
+regex = "1.13.1"
+walkdir = "2.5.0"
+
+[profile.release]
+strip = true
