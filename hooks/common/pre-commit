@@ -11,6 +11,8 @@ source "$HOOKS_DIR"/functions.sh
 verbose "Hook: pre-commit"
 
 if ! get_config_bool gitflow.allow-master-commit; then
+  verbose "Checking if the current branch is the $MASTER_BRANCH branch"
+  git rev-parse -q --verify MERGE_HEAD >/dev/null && verbose "Merge in progress, skipping branch check" && exit 0
   BRANCH=$(git symbolic-ref HEAD)
   [[ $BRANCH == "refs/heads/$MASTER_BRANCH" ]] && die "Direct commits to the $MASTER_BRANCH branch are forbidden"
 fi
