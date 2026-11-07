@@ -92,7 +92,7 @@ impl Injector {
         // 1/ make sure git flow is installed and initialized
         let flavor = self.git_flow_flavor(repo)?;
         verbose!("git flow: {flavor:?}");
-        if self.is_git_flow_initialized(repo)? {
+        if self.is_git_flow_initialized(repo)? || self.import_shared_config(repo, flavor)? {
             self.check_branches(repo, flavor)?;
         } else {
             verbose!("Initializing git flow in repository {}", repo.display());
@@ -163,6 +163,11 @@ impl Injector {
         }
         // Resetting the hooks folder, in case the repo was moved
         let hooks_path = repo.join(&self.hooks_dir);
+        // The hooks folder before the reset (e.g.: in the previous location of the repo), as core.hooksPath may still point to it
+        let previous_hooks_path = self.git_get(
+            repo,
+            &["config", "--type=path", "--get", "gitflow.path.hooks"],
+        )?;
 
         // 2/ configure git flow
         verbose!("Configuring gitflow");
@@ -220,6 +225,7 @@ impl Injector {
                 })?;
             }
         }
+        self.preserve_custom_pre_commit(repo, &hooks_path)?;
         verbose!("Copying hooks");
         for folder in ["common", language.name()] {
             self.copy_hooks(folder, &hooks_path).map_err(|err| {
@@ -229,7 +235,135 @@ impl Injector {
                 )
             })?;
         }
+
+        // 5/ make sure git runs our hooks, even when the repository has its own hooks folder (e.g.: a committed .githooks)
+        self.take_over_hooks_path(repo, &hooks_path, &previous_hooks_path)?;
         Ok(())
+    }
+
+    /// git only runs the hooks of core.hooksPath, which would skip our pre-commit hook
+    /// When core.hooksPath points to another folder, it is saved in gitflow.path.custom-hooks and core.hooksPath points to our hooks,
+    /// which forward every git hook to the custom folder (our pre-commit runs the custom pre-commit after its own checks)
+    /// The forwarders are installed after our hooks, so core.hooksPath only moves once everything is in place
+    /// core.hooksPath is not a custom folder when it points to our hooks, now or before the repo was moved or copied
+    /// (previous_hooks_path), or to any folder carrying our pre-commit, as forwarding to it would loop
+    fn take_over_hooks_path(
+        &self,
+        repo: &Path,
+        hooks_path: &Path,
+        previous_hooks_path: &str,
+    ) -> Result<(), String> {
+        let is_managed = |folder: &Path| {
+            same_folder(folder, hooks_path)
+                || (!previous_hooks_path.is_empty()
+                    && same_folder(folder, &repo.join(previous_hooks_path)))
+                || fs::read(folder.join("pre-commit"))
+                    .is_ok_and(|contents| is_our_pre_commit(&contents))
+        };
+        let hooks_path_config =
+            self.git_get(repo, &["config", "--type=path", "--get", "core.hooksPath"])?;
+        let mut custom_hooks = self.git_get(
+            repo,
+            &[
+                "config",
+                "--type=path",
+                "--get",
+                "gitflow.path.custom-hooks",
+            ],
+        )?;
+        if !hooks_path_config.is_empty() && !is_managed(&repo.join(&hooks_path_config)) {
+            custom_hooks = hooks_path_config.clone();
+        }
+        if custom_hooks.is_empty() {
+            // core.hooksPath points to other git flow hooks: in the previous location of the repository (moved or copied),
+            // or another folder of git flow hooks (e.g.: in the global config), git would run them instead of the ones just installed
+            let configured = repo.join(&hooks_path_config);
+            if !hooks_path_config.is_empty() && !same_folder(&configured, hooks_path) {
+                let previous = !previous_hooks_path.is_empty()
+                    && same_folder(&configured, &repo.join(previous_hooks_path));
+                if !previous {
+                    // Its other hooks will not run anymore (forwarding to it would run its git flow pre-commit, which loops)
+                    let others: Vec<&str> = GIT_HOOKS
+                        .iter()
+                        .copied()
+                        .filter(|name| {
+                            fs::read(configured.join(name))
+                                .is_ok_and(|contents| !is_forwarder(&contents))
+                        })
+                        .collect();
+                    warning!(
+                        "core.hooksPath pointed to the git flow hooks in {}, it now points to {}{}",
+                        configured.display(),
+                        hooks_path.display(),
+                        if others.is_empty() {
+                            String::new()
+                        } else {
+                            format!(
+                                ". These hooks from that folder will not run anymore: {}",
+                                others.join(", ")
+                            )
+                        }
+                    );
+                }
+                self.git_config(repo, "core.hooksPath", &hooks_path.to_string_lossy())?;
+            }
+            return Ok(());
+        }
+        verbose!("Forwarding the git hooks to {custom_hooks}");
+        let custom_path = repo.join(&custom_hooks);
+        if is_managed(&custom_path) {
+            // e.g.: set by hand to a folder of git flow hooks
+            return Err(format!(
+                "gitflow.path.custom-hooks ({custom_hooks}) is a git flow hooks folder, forwarding to it would loop. Set it to your own hooks folder (e.g.: git config gitflow.path.custom-hooks .githooks) or remove it (git config --unset gitflow.path.custom-hooks)"
+            ));
+        }
+        let forwarder = self.hook_contents("forward", "forward-hook")?;
+        for name in GIT_HOOKS {
+            let destination = hooks_path.join(name);
+            if let Ok(contents) = fs::read(&destination)
+                && !is_forwarder(&contents)
+            {
+                // Not ours (e.g.: a hook installed by another tool in .git/hooks), leave it alone
+                if custom_path.join(name).exists() {
+                    warning!(
+                        "{} is not a git flow hook, {} will not run. Move it away and run hook-it again",
+                        destination.display(),
+                        custom_path.join(name).display()
+                    );
+                }
+                continue;
+            }
+            if self.noop {
+                println!("Would write {}", destination.display());
+                continue;
+            }
+            install_file(&destination, &forwarder)
+                .map_err(|err| format!("Error while writing {}: {err}", destination.display()))?;
+        }
+        self.git_config(repo, "gitflow.path.custom-hooks", &custom_hooks)?;
+        let hooks_path_str = hooks_path.to_string_lossy();
+        if hooks_path_config.is_empty() || !same_folder(&repo.join(&hooks_path_config), hooks_path)
+        {
+            self.git_config(repo, "core.hooksPath", &hooks_path_str)?;
+            warning!(
+                "core.hooksPath now points to {hooks_path_str}, the hooks from {custom_hooks} still run (pre-commit after the git flow checks). If core.hooksPath changes again (e.g.: husky), run hook-it again"
+            );
+        }
+        Ok(())
+    }
+
+    /// Gives the contents of a hook, from the hooks folder given on the command line or the embedded ones
+    fn hook_contents(&self, folder: &str, name: &str) -> Result<Vec<u8>, String> {
+        match &self.hooks_source {
+            Some(source) => {
+                let path = source.join(folder).join(name);
+                fs::read(&path).map_err(|err| format!("{}: {err}", path.display()))
+            }
+            None => HOOKS
+                .get_file(format!("{folder}/{name}"))
+                .map(|file| file.contents().to_vec())
+                .ok_or_else(|| format!("No embedded hook {folder}/{name}")),
+        }
     }
 
     /// Finds which git flow is installed, only git flow AVH and git-flow-next support hooks
@@ -407,6 +541,133 @@ impl Injector {
             )? == "true")
     }
 
+    /// Copies the git-flow-next configuration shared in the repository (.gitflow, from git flow init --shared) into the local config
+    /// git-flow-next reads .gitflow by itself, but git flow init ignores it and the hooks only read the git config,
+    /// so a fresh clone would get git flow's default branches instead of the shared ones
+    /// Tells if the configuration was imported
+    fn import_shared_config(&self, repo: &Path, flavor: Flavor) -> Result<bool, String> {
+        let shared = repo.join(".gitflow");
+        if flavor != Flavor::Next || !shared.is_file() {
+            return Ok(false);
+        }
+        let shared_str = shared.to_string_lossy();
+        if self.git_get(
+            repo,
+            &[
+                "config",
+                "--file",
+                &shared_str,
+                "--bool",
+                "gitflow.initialized",
+            ],
+        )? != "true"
+        {
+            return Ok(false);
+        }
+        verbose!("Importing the shared git flow configuration from {shared_str}");
+        let entries = self.git_get(repo, &["config", "--file", &shared_str, "--list", "-z"])?;
+        let mut skipped = Vec::new();
+        for entry in entries.split('\0').filter(|entry| !entry.is_empty()) {
+            let (key, value) = entry.split_once('\n').unwrap_or((entry, ""));
+            if is_shareable_key(key) {
+                self.git_config(repo, key, value)?;
+            } else {
+                skipped.push(key);
+            }
+        }
+        if !skipped.is_empty() {
+            warning!(
+                "Ignored these settings from {shared_str}, only the branch configuration is imported, set them yourself if you trust them: {}",
+                skipped.join(", ")
+            );
+        }
+        Ok(true)
+    }
+
+    /// Copies the user's own pre-commit hook to pre-commit.local, before ours overwrites it
+    /// Our pre-commit runs pre-commit.local after its own checks
+    /// It is copied, not moved, so the user's hook stays in place if installing ours fails
+    /// gitflow.path.pre-commit is updated when it points to the replaced hook, as it would point to ours afterwards
+    fn preserve_custom_pre_commit(&self, repo: &Path, hooks_path: &Path) -> Result<(), String> {
+        let pre_commit = hooks_path.join("pre-commit");
+        // Look at the entry itself, without following it: a dangling symlink still is the user's hook
+        match fs::symlink_metadata(&pre_commit) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(format!("Cannot check {}: {err}", pre_commit.display())),
+            Ok(_) => {}
+        }
+        let link = fs::read_link(&pre_commit).ok();
+        let contents = match fs::read(&pre_commit) {
+            Ok(contents) if is_our_pre_commit(&contents) => return Ok(()),
+            Ok(contents) => Some(contents),
+            // A dangling symlink is saved as is
+            Err(_) if link.is_some() => None,
+            // It would be replaced without a backup
+            Err(err) => {
+                return Err(format!(
+                    "Cannot read {} to save it before installing the git flow pre-commit hook: {err}",
+                    pre_commit.display()
+                ));
+            }
+        };
+        let local = hooks_path.join("pre-commit.local");
+        // Never write onto an existing pre-commit.local, not even a dangling symlink (it would be written through)
+        let local_exists = fs::symlink_metadata(&local).is_ok();
+        // Saved by a previous run that could not install our hooks: the same symlink, or a copy of the same contents
+        let already_saved = local_exists
+            && match &link {
+                Some(target) => {
+                    fs::read_link(&local).is_ok_and(|local_target| &local_target == target)
+                }
+                None => {
+                    !local.is_symlink()
+                        && fs::read(&local)
+                            .is_ok_and(|local_contents| Some(local_contents) == contents)
+                }
+            };
+        match (local_exists, already_saved) {
+            (_, true) => {}
+            (true, false) => {
+                return Err(format!(
+                    "{} is not a git flow hook and {} already exists, move one of them away first",
+                    pre_commit.display(),
+                    local.display()
+                ));
+            }
+            (false, _) if self.noop => {
+                println!("Would copy {} to {}", pre_commit.display(), local.display());
+            }
+            (false, _) => {
+                preserve_file(&pre_commit, &local).map_err(|err| {
+                    format!(
+                        "Error while copying {} to {}: {err}",
+                        pre_commit.display(),
+                        local.display()
+                    )
+                })?;
+                if is_executable(&pre_commit) {
+                    warning!(
+                        "Saved your pre-commit hook as {}, it will run after the git flow pre-commit hook",
+                        local.display()
+                    );
+                } else {
+                    warning!(
+                        "Saved your pre-commit hook as {}, it is not executable, so like before it will not run (chmod +x to turn it on)",
+                        local.display()
+                    );
+                }
+            }
+        }
+        let configured = self.git_get(
+            repo,
+            &["config", "--type=path", "--get", "gitflow.path.pre-commit"],
+        )?;
+        if !configured.is_empty() && same_entry(&repo.join(&configured), &pre_commit) {
+            self.git_config(repo, "gitflow.path.pre-commit", &local.to_string_lossy())?;
+        }
+        Ok(())
+    }
+
     /// Copies the hooks of the given folder (common or a language) into the hooks path
     fn copy_hooks(&self, folder: &str, hooks_path: &Path) -> Result<(), String> {
         match &self.hooks_source {
@@ -427,7 +688,9 @@ impl Injector {
                         );
                         continue;
                     }
-                    fs::copy(entry.path(), &destination).map_err(|err| err.to_string())?;
+                    fs::read(entry.path())
+                        .and_then(|contents| install_file(&destination, &contents))
+                        .map_err(|err| err.to_string())?;
                 }
             }
             None => {
@@ -443,8 +706,7 @@ impl Injector {
                         println!("Would write {}", destination.display());
                         continue;
                     }
-                    fs::write(&destination, file.contents()).map_err(|err| err.to_string())?;
-                    make_executable(&destination).map_err(|err| err.to_string())?;
+                    install_file(&destination, file.contents()).map_err(|err| err.to_string())?;
                 }
             }
         }
@@ -494,6 +756,131 @@ impl Injector {
     }
 }
 
+/// The git hooks forwarded to gitflow.path.custom-hooks (see githooks(5)), pre-commit is ours and runs the custom one itself
+const GIT_HOOKS: [&str; 27] = [
+    "applypatch-msg",
+    "pre-applypatch",
+    "post-applypatch",
+    "pre-merge-commit",
+    "prepare-commit-msg",
+    "commit-msg",
+    "post-commit",
+    "pre-rebase",
+    "post-checkout",
+    "post-merge",
+    "pre-push",
+    "pre-receive",
+    "update",
+    "proc-receive",
+    "post-receive",
+    "post-update",
+    "reference-transaction",
+    "push-to-checkout",
+    "pre-auto-gc",
+    "post-rewrite",
+    "sendemail-validate",
+    "fsmonitor-watchman",
+    "p4-changelist",
+    "p4-prepare-changelist",
+    "p4-post-changelist",
+    "p4-pre-submit",
+    "post-index-change",
+];
+
+/// Tells if the setting can be imported from a committed .gitflow file: only the branch configuration of git-flow-next
+/// The other settings (e.g.: gitflow.path.pre-commit, gitflow.allow-master-commit) would let any repository run its own scripts
+/// on commit or turn the checks off, without the developer opting in
+fn is_shareable_key(key: &str) -> bool {
+    const BRANCH_KEYS: [&str; 10] = [
+        "type",
+        "parent",
+        "startpoint",
+        "upstreamstrategy",
+        "downstreamstrategy",
+        "prefix",
+        "autoupdate",
+        "tag",
+        "tagprefix",
+        "worktree",
+    ];
+    if key == "gitflow.version" || key == "gitflow.initialized" {
+        return true;
+    }
+    // Branch names can contain dots (e.g.: gitflow.branch.v1.x.type), the setting is the last part
+    key.strip_prefix("gitflow.branch.")
+        .and_then(|rest| rest.rsplit_once('.'))
+        .is_some_and(|(name, setting)| !name.is_empty() && BRANCH_KEYS.contains(&setting))
+}
+
+/// Tells if the hook is one of our forwarders
+fn is_forwarder(contents: &[u8]) -> bool {
+    String::from_utf8_lossy(contents).contains("# gitflow-hooks: forwarder")
+}
+
+/// Tells if both paths are the same folder, when they exist, or the same path otherwise
+fn same_folder(left: &Path, right: &Path) -> bool {
+    match (left.canonicalize(), right.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
+/// Tells if the pre-commit hook is one of ours (any version), they all load our functions.sh
+fn is_our_pre_commit(contents: &[u8]) -> bool {
+    String::from_utf8_lossy(contents).contains("\"$HOOKS_DIR\"/functions.sh")
+}
+
+/// Saves a hook under another name, a symlink stays a symlink to the same target (e.g.: a committed .githooks/pre-commit),
+/// so the changes of its target still apply. Elsewhere than on Unix, the contents and permissions are copied
+fn preserve_file(source: &Path, destination: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    if let Ok(target) = fs::read_link(source) {
+        // Both are in the same folder, so a relative target stays valid
+        return std::os::unix::fs::symlink(target, destination);
+    }
+    fs::copy(source, destination).map(|_| ())
+}
+
+/// Tells if both paths name the same entry of the same folder, without following the entry itself if it is a symlink
+fn same_entry(left: &Path, right: &Path) -> bool {
+    left.file_name() == right.file_name()
+        && match (left.parent(), right.parent()) {
+            (Some(left), Some(right)) => same_folder(left, right),
+            _ => false,
+        }
+}
+
+/// Writes an executable hook through a temporary file renamed over the destination:
+/// a symlink is replaced, not written through (it could point to a committed hook, e.g.: .githooks/pre-commit),
+/// and the previous file stays in place if writing fails
+fn install_file(destination: &Path, contents: &[u8]) -> std::io::Result<()> {
+    let name = destination
+        .file_name()
+        .map(|name| name.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let temporary = destination.with_file_name(format!(".{name}.hook-it.tmp"));
+    let _ = fs::remove_file(&temporary);
+    let result = fs::write(&temporary, contents)
+        .and_then(|_| make_executable(&temporary))
+        .and_then(|_| fs::rename(&temporary, destination));
+    if result.is_err() {
+        let _ = fs::remove_file(&temporary);
+    }
+    result
+}
+
+/// Tells if git would run the hook, git ignores the hooks that are not executable (on Windows, they all are)
+#[cfg(unix)]
+fn is_executable(path: &Path) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+    fs::metadata(path).is_ok_and(|metadata| metadata.permissions().mode() & 0o111 != 0)
+}
+
+#[cfg(not(unix))]
+fn is_executable(_path: &Path) -> bool {
+    true
+}
+
 #[cfg(unix)]
 fn make_executable(path: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
@@ -503,4 +890,182 @@ fn make_executable(path: &Path) -> std::io::Result<()> {
 #[cfg(not(unix))]
 fn make_executable(_path: &Path) -> std::io::Result<()> {
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn injector() -> Injector {
+        Injector {
+            git: "git".into(),
+            hooks_dir: ".git/hooks".into(),
+            sources: Vec::new(),
+            hooks_source: None,
+            use_pull_requests: false,
+            main_branch: None,
+            develop_branch: None,
+            noop: false,
+        }
+    }
+
+    fn temp_hooks(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("hook-it-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn recognizes_our_pre_commit() {
+        let ours = HOOKS.get_file("common/pre-commit").unwrap().contents();
+        assert!(is_our_pre_commit(ours));
+        assert!(!is_our_pre_commit(b"#!/bin/sh\nmake lint\n"));
+    }
+
+    #[test]
+    fn recognizes_our_forwarder() {
+        let forwarder = injector().hook_contents("forward", "forward-hook").unwrap();
+        assert!(is_forwarder(&forwarder));
+        assert!(!is_our_pre_commit(&forwarder));
+        assert!(!is_forwarder(b"#!/bin/sh\nctags -R\n"));
+        assert!(!GIT_HOOKS.contains(&"pre-commit"));
+    }
+
+    #[test]
+    fn our_hooks_folder_is_not_a_custom_one() {
+        let dir = temp_hooks("managed");
+        let ours = HOOKS.get_file("common/pre-commit").unwrap().contents();
+        fs::write(dir.join("pre-commit"), ours).unwrap();
+        // A hooks folder from the previous location of the repository, which carries our pre-commit
+        assert!(
+            fs::read(dir.join("pre-commit")).is_ok_and(|contents| is_our_pre_commit(&contents))
+        );
+        assert!(same_folder(&dir, &dir.join(".")));
+        assert!(!same_folder(&dir, &dir.join("missing")));
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn imports_only_the_branch_configuration() {
+        assert!(is_shareable_key("gitflow.initialized"));
+        assert!(is_shareable_key("gitflow.branch.feature.parent"));
+        assert!(is_shareable_key("gitflow.branch.v1.x.type"));
+        assert!(!is_shareable_key("gitflow.path.pre-commit"));
+        assert!(!is_shareable_key("gitflow.path.hooks"));
+        assert!(!is_shareable_key("gitflow.allow-master-commit"));
+        assert!(!is_shareable_key("gitflow.branch.feature.hook"));
+        assert!(!is_shareable_key("gitflow.branch.type"));
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn replaces_symlinks_instead_of_writing_through() {
+        let dir = temp_hooks("symlink");
+        fs::create_dir_all(dir.join("shared")).unwrap();
+        fs::write(dir.join("shared/pre-commit"), "#!/bin/sh\nteam\n").unwrap();
+        std::os::unix::fs::symlink("shared/pre-commit", dir.join("pre-commit")).unwrap();
+        preserve_file(&dir.join("pre-commit"), &dir.join("pre-commit.local")).unwrap();
+        install_file(&dir.join("pre-commit"), b"#!/bin/sh\nours\n").unwrap();
+        assert_eq!(
+            fs::read_to_string(dir.join("shared/pre-commit")).unwrap(),
+            "#!/bin/sh\nteam\n"
+        );
+        assert_eq!(
+            fs::read_to_string(dir.join("pre-commit")).unwrap(),
+            "#!/bin/sh\nours\n"
+        );
+        assert!(!dir.join("pre-commit").is_symlink());
+        assert_eq!(
+            fs::read_link(dir.join("pre-commit.local")).unwrap(),
+            PathBuf::from("shared/pre-commit")
+        );
+        assert!(!dir.join(".pre-commit.hook-it.tmp").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn saves_a_dangling_pre_commit_symlink() {
+        let dir = temp_hooks("dangling");
+        std::os::unix::fs::symlink("missing/pre-commit", dir.join("pre-commit")).unwrap();
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
+        assert_eq!(
+            fs::read_link(dir.join("pre-commit.local")).unwrap(),
+            PathBuf::from("missing/pre-commit")
+        );
+        // A second run (e.g.: after a failed installation) accepts it
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn never_writes_through_a_dangling_local() {
+        let dir = temp_hooks("dangling-local");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        std::os::unix::fs::symlink("target", dir.join("pre-commit.local")).unwrap();
+        assert!(injector().preserve_custom_pre_commit(&dir, &dir).is_err());
+        assert!(!dir.join("target").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_to_replace_an_unreadable_pre_commit() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_hooks("unreadable");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        fs::set_permissions(dir.join("pre-commit"), fs::Permissions::from_mode(0o000)).unwrap();
+        // root reads anything, nothing to check then
+        if fs::read(dir.join("pre-commit")).is_err() {
+            assert!(injector().preserve_custom_pre_commit(&dir, &dir).is_err());
+            assert!(!dir.join("pre-commit.local").exists());
+        }
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn copies_custom_pre_commit() {
+        let dir = temp_hooks("custom");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
+        // Still in place, in case installing our hooks fails
+        assert!(dir.join("pre-commit").exists());
+        assert_eq!(
+            fs::read_to_string(dir.join("pre-commit.local")).unwrap(),
+            "#!/bin/sh\nmake lint\n"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn keeps_our_pre_commit() {
+        let dir = temp_hooks("ours");
+        let ours = HOOKS.get_file("common/pre-commit").unwrap().contents();
+        fs::write(dir.join("pre-commit"), ours).unwrap();
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
+        assert!(dir.join("pre-commit").exists());
+        assert!(!dir.join("pre-commit.local").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn accepts_a_previous_copy() {
+        let dir = temp_hooks("retry");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        fs::write(dir.join("pre-commit.local"), "#!/bin/sh\nmake lint\n").unwrap();
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn refuses_to_overwrite_existing_local() {
+        let dir = temp_hooks("both");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        fs::write(dir.join("pre-commit.local"), "#!/bin/sh\nmake test\n").unwrap();
+        assert!(injector().preserve_custom_pre_commit(&dir, &dir).is_err());
+        assert!(dir.join("pre-commit").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }

@@ -193,6 +193,70 @@ You can turn off the Appveyor feature with:
 git config --bool gitflow.bump-appveyor false
 ```
 
+### Custom pre-commit hook
+
+You can run your own pre-commit hook as well. It runs **after** the checks of the git flow pre-commit hook, and only if they pass. If it fails, the commit fails.
+
+The hooks run the first custom pre-commit hook they find:
+
+1. the script given by `gitflow.path.pre-commit`, its path is relative to the root of the repository:
+
+   ```bash
+   git config gitflow.path.pre-commit scripts/pre-commit
+   ```
+
+2. the `pre-commit` of the repository's own hooks folder (e.g., `.githooks/pre-commit`), see [Repositories with their own hooks folder](#repositories-with-their-own-hooks-folder);
+3. `pre-commit.local` in the hooks folder (e.g., `.git/hooks/pre-commit.local`). If the repository already has a pre-commit hook that is not ours, `hook-it` saves it as `pre-commit.local` before replacing it (a symlink stays a symlink to the same target, e.g., `.githooks/pre-commit`, which is never modified) (and stops if a different `pre-commit.local` already exists). If `gitflow.path.pre-commit` pointed to that hook, it now points to `pre-commit.local`.
+
+The script of 1. must be executable, otherwise the commit fails. A custom hook cannot be a git flow pre-commit hook (it would run itself forever), the commit fails as well. When `gitflow.path.pre-commit` is set, the commit also fails if the script does not exist. Like git, the hooks ignore the hooks of 2. and 3. that are not executable, with a warning (e.g., a disabled pre-commit hook saved by `hook-it`).
+
+While a merge is in progress, the git flow checks are skipped, but the custom hook still runs.
+
+### Repositories with their own hooks folder
+
+Some repositories commit their hooks, in a `.githooks` folder for instance, so the whole team shares them, and each developer turns them on with:
+
+```bash
+git config core.hooksPath .githooks
+```
+
+git then **only** runs the hooks of that folder, and the git flow pre-commit hook would never run. So, when `core.hooksPath` points to another folder (in the repository config or in your global config), `hook-it`:
+
+1. saves that folder in `gitflow.path.custom-hooks` (here, `.githooks`),
+2. points `core.hooksPath` to the git flow hooks folder (`.git/hooks`),
+3. installs a small forwarder in the git flow hooks folder for every other git hook (`commit-msg`, `pre-push`, `post-checkout`, ...). It runs the hook of the same name from `gitflow.path.custom-hooks`, if it exists.
+
+Like git with `core.hooksPath`, a relative `gitflow.path.custom-hooks` is relative to the folder where the hook runs: the root of the working tree, or the `.git` folder for the hooks that receive a push (`pre-receive`, `update`, ...).
+
+If you move or copy the repository, run `hook-it` again: it recognizes its own hooks folder from the previous location and keeps `gitflow.path.custom-hooks`.
+
+The git flow pre-commit hook runs the `pre-commit` of that folder after its own checks (see [Custom pre-commit hook](#custom-pre-commit-hook)). The other hooks of the folder run as before, and hooks added later to the folder (e.g., by a teammate) run as well, without running `hook-it` again.
+
+`hook-it` never overwrites a hook of the git flow hooks folder that is not ours (e.g., a ctags `post-checkout`): it displays a warning if the custom folder has a hook with the same name, as that hook will not run. Move the file away and run `hook-it` again.
+
+The procedure for a developer of such a repository is then:
+
+```bash
+git clone <url> && cd <repo>
+git config core.hooksPath .githooks   # the usual procedure of the repository, if any
+hook-it .
+```
+
+If something sets `core.hooksPath` again later (e.g., [husky](https://typicode.github.io/husky) on `npm install`), the git flow pre-commit hook does not run anymore; run `hook-it` again, it saves the new folder and takes `core.hooksPath` over again.
+
+To stop forwarding, give the folder back to git:
+
+```bash
+git config core.hooksPath "$(git config gitflow.path.custom-hooks)"
+git config --unset gitflow.path.custom-hooks
+```
+
+### Shared git flow configuration
+
+With git-flow-next, `git flow init --shared` writes the git flow configuration (branches, prefixes, ...) in a `.gitflow` file at the root of the repository, to commit, so the whole team uses the same branches. That file only carries the branch configuration, not the hooks: each developer still runs `hook-it` after cloning.
+
+`git flow init` and the hooks ignore `.gitflow`, so when the local config has no git flow configuration and the repository has a `.gitflow` file, `hook-it` copies its branch configuration into the local config instead of initializing git flow with the default branches. The other settings of `.gitflow` (e.g., `gitflow.path.pre-commit`, `gitflow.allow-master-commit`) are ignored with a warning, as they would let a repository run its own scripts on commit, or turn the checks off, without you opting in; set them yourself if you trust them. `--main` and `--develop` do not change the shared branches (`hook-it` only warns if they differ).
+
 ### Version file
 
 By default, the scripts look for the file carrying the version of the repository:

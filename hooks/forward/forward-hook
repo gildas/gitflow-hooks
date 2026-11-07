@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# gitflow-hooks: forwarder
+#
+# hook-it moved core.hooksPath to the git flow hooks folder, so git runs the hooks from there.
+# This forwarder runs the hook of the same name from the folder the repository used before (gitflow.path.custom-hooks),
+# so the hooks stored there (e.g.: a committed .githooks folder) keep working.
+
+custom_dir=$(git config --type=path --get gitflow.path.custom-hooks) || exit 0
+[[ -z $custom_dir ]] && exit 0
+# Like git with core.hooksPath, a relative path stays relative to the folder the hook runs in:
+# the root of the working tree, or $GIT_DIR for the receiving hooks (pre-receive, update, ...) and in bare repositories
+hook="$custom_dir/$(basename "$0")"
+[[ -e $hook ]] || exit 0
+# A relative path can lead back to the git flow hooks (e.g.: core.hooksPath=hooks for the receiving hooks, which run in $GIT_DIR),
+# forwarding to this hook, or to another forwarder, would loop forever
+if [[ $hook -ef $0 ]] || grep -Fq '# gitflow-hooks: forwarder' "$hook" 2>/dev/null; then
+  exit 0
+fi
+if [[ ! -x $hook ]]; then
+  # Like git, ignore the hooks that are not executable
+  echo "hint: The '$hook' hook was ignored because it's not set as executable." >&2
+  exit 0
+fi
+exec "$hook" "$@"

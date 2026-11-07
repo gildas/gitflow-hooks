@@ -2,17 +2,66 @@
 
 if [[ -z $HOOKS_DIR ]]; then
   HOOKS_DIR="$0"
-  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
-  HOOKS_DIR=$(dirname $HOOKS_DIR)
+  # Follow the symlinks to the real hook, a relative target is relative to the folder of the link
+  while [[ -h $HOOKS_DIR ]]; do
+    HOOK_PATH=$(readlink "$HOOKS_DIR")
+    [[ $HOOK_PATH == /* ]] && HOOKS_DIR=$HOOK_PATH || HOOKS_DIR="$(dirname "$HOOKS_DIR")/$HOOK_PATH"
+  done
+  HOOKS_DIR=$(dirname "$HOOKS_DIR")
 fi
 source "$HOOKS_DIR"/functions.sh
 [[ -f "$HOOKS_DIR"/functions-lang.sh ]] && source "$HOOKS_DIR"/functions-lang.sh
 
 trace "Hook: pre-commit"
 
+# Tells if the path is absolute, including Windows paths with a drive letter (e.g.: C:/hooks with Git for Windows)
+function is_absolute_path() { # {{{2
+  [[ $1 == /* || $1 =~ ^[A-Za-z]:[/\\] ]]
+} # 2}}}
+
+# Runs the user's custom pre-commit hook, if any, after ours. The first found wins:
+# - gitflow.path.pre-commit (relative to the repository root),
+# - pre-commit in gitflow.path.custom-hooks, the hooks folder (e.g.: .githooks) used before hook-it took over core.hooksPath,
+# - pre-commit.local in the hooks folder
+function run_custom_pre_commit() { # {{{2
+  local custom_hook custom_dir
+  custom_hook=$(git config --type=path --get gitflow.path.pre-commit)
+  custom_dir=$(git config --type=path --get gitflow.path.custom-hooks)
+  [[ -n $custom_dir ]] && ! is_absolute_path "$custom_dir" && custom_dir="$ROOT_DIR/$custom_dir"
+  if [[ -n $custom_hook ]]; then
+    is_absolute_path "$custom_hook" || custom_hook="$ROOT_DIR/$custom_hook"
+    [[ -e $custom_hook ]] || die "The custom pre-commit hook $custom_hook (gitflow.path.pre-commit) does not exist"
+  elif [[ -n $custom_dir && -e $custom_dir/pre-commit ]]; then
+    custom_hook="$custom_dir/pre-commit"
+    if [[ ! -x $custom_hook ]]; then
+      # Like git, ignore the hooks that are not executable
+      warn "The custom pre-commit hook $custom_hook was ignored because it is not executable"
+      exit 0
+    fi
+  else
+    custom_hook="$HOOKS_DIR/pre-commit.local"
+    [[ -e $custom_hook ]] || exit 0
+    if [[ ! -x $custom_hook ]]; then
+      # Like git, ignore the hooks that are not executable (e.g.: a disabled pre-commit hook saved by hook-it)
+      warn "The custom pre-commit hook $custom_hook was ignored because it is not executable"
+      exit 0
+    fi
+  fi
+  [[ -x $custom_hook ]] || die "The custom pre-commit hook $custom_hook is not executable, run: chmod +x $custom_hook"
+  # The custom hook cannot be a git flow pre-commit hook (this one, through a symlink, or a copy), running it would loop forever
+  if [[ $custom_hook -ef $0 ]] || grep -Fq 'source "$HOOKS_DIR"/functions.sh' "$custom_hook" 2>/dev/null; then
+    die "The custom pre-commit hook $custom_hook is a git flow pre-commit hook, running it would loop. Point gitflow.path.pre-commit to your own hook (e.g.: $HOOKS_DIR/pre-commit.local, where hook-it saves the pre-commit hook it replaces), or remove it"
+  fi
+  verbose "Running the custom pre-commit hook $custom_hook"
+  exec "$custom_hook" "$@"
+} # 2}}}
+
 if ! get_config_bool gitflow.allow-master-commit; then
   verbose "Checking if the current branch is the $MASTER_BRANCH branch"
-  git rev-parse -q --verify MERGE_HEAD >/dev/null && verbose "Merge in progress, skipping branch check" && exit 0
+  if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    verbose "Merge in progress, skipping branch check"
+    run_custom_pre_commit "$@"
+  fi
   BRANCH=$(git symbolic-ref HEAD)
   [[ $BRANCH == "refs/heads/$MASTER_BRANCH" ]] && die "Direct commits to the $MASTER_BRANCH branch are forbidden"
 fi
@@ -46,4 +95,4 @@ if get_config_bool gitflow.must-pass-lint true; then
   fi
 fi
 
-exit 0
+run_custom_pre_commit "$@"

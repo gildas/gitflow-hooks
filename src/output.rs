@@ -15,7 +15,10 @@ pub fn verbosity() -> u8 {
 /// Prints a section title followed by a line, like the title() bash function
 pub fn title(text: &str) {
     let width = 114usize.saturating_sub(text.chars().count());
-    eprintln!("\x1b[34;1m▶\x1b[0m \x1b[1m{text} {}\x1b[0m", "𝄙".repeat(width));
+    eprintln!(
+        "\x1b[34;1m▶\x1b[0m \x1b[1m{text} {}\x1b[0m",
+        "𝄙".repeat(width)
+    );
 }
 
 macro_rules! verbose {
