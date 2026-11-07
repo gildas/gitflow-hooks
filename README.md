@@ -226,6 +226,10 @@ git then **only** runs the hooks of that folder, and the git flow pre-commit hoo
 2. points `core.hooksPath` to the git flow hooks folder (`.git/hooks`),
 3. installs a small forwarder in the git flow hooks folder for every other git hook (`commit-msg`, `pre-push`, `post-checkout`, ...). It runs the hook of the same name from `gitflow.path.custom-hooks`, if it exists.
 
+Like git with `core.hooksPath`, a relative `gitflow.path.custom-hooks` is relative to the folder where the hook runs: the root of the working tree, or the `.git` folder for the hooks that receive a push (`pre-receive`, `update`, ...).
+
+If you move or copy the repository, run `hook-it` again: it recognizes its own hooks folder from the previous location and keeps `gitflow.path.custom-hooks`.
+
 The git flow pre-commit hook runs the `pre-commit` of that folder after its own checks (see [Custom pre-commit hook](#custom-pre-commit-hook)). The other hooks of the folder run as before, and hooks added later to the folder (e.g., by a teammate) run as well, without running `hook-it` again.
 
 `hook-it` never overwrites a hook of the git flow hooks folder that is not ours (e.g., a ctags `post-checkout`): it displays a warning if the custom folder has a hook with the same name, as that hook will not run. Move the file away and run `hook-it` again.

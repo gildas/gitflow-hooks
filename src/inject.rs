@@ -163,6 +163,11 @@ impl Injector {
         }
         // Resetting the hooks folder, in case the repo was moved
         let hooks_path = repo.join(&self.hooks_dir);
+        // The hooks folder before the reset (e.g.: in the previous location of the repo), as core.hooksPath may still point to it
+        let previous_hooks_path = self.git_get(
+            repo,
+            &["config", "--type=path", "--get", "gitflow.path.hooks"],
+        )?;
 
         // 2/ configure git flow
         verbose!("Configuring gitflow");
@@ -232,7 +237,7 @@ impl Injector {
         }
 
         // 5/ make sure git runs our hooks, even when the repository has its own hooks folder (e.g.: a committed .githooks)
-        self.take_over_hooks_path(repo, &hooks_path)?;
+        self.take_over_hooks_path(repo, &hooks_path, &previous_hooks_path)?;
         Ok(())
     }
 
@@ -240,7 +245,21 @@ impl Injector {
     /// When core.hooksPath points to another folder, it is saved in gitflow.path.custom-hooks and core.hooksPath points to our hooks,
     /// which forward every git hook to the custom folder (our pre-commit runs the custom pre-commit after its own checks)
     /// The forwarders are installed after our hooks, so core.hooksPath only moves once everything is in place
-    fn take_over_hooks_path(&self, repo: &Path, hooks_path: &Path) -> Result<(), String> {
+    /// core.hooksPath is not a custom folder when it points to our hooks, now or before the repo was moved or copied
+    /// (previous_hooks_path), or to any folder carrying our pre-commit, as forwarding to it would loop
+    fn take_over_hooks_path(
+        &self,
+        repo: &Path,
+        hooks_path: &Path,
+        previous_hooks_path: &str,
+    ) -> Result<(), String> {
+        let is_managed = |folder: &Path| {
+            same_folder(folder, hooks_path)
+                || (!previous_hooks_path.is_empty()
+                    && same_folder(folder, &repo.join(previous_hooks_path)))
+                || fs::read(folder.join("pre-commit"))
+                    .is_ok_and(|contents| is_our_pre_commit(&contents))
+        };
         let hooks_path_config =
             self.git_get(repo, &["config", "--type=path", "--get", "core.hooksPath"])?;
         let mut custom_hooks = self.git_get(
@@ -252,8 +271,7 @@ impl Injector {
                 "gitflow.path.custom-hooks",
             ],
         )?;
-        if !hooks_path_config.is_empty() && !same_folder(&repo.join(&hooks_path_config), hooks_path)
-        {
+        if !hooks_path_config.is_empty() && !is_managed(&repo.join(&hooks_path_config)) {
             custom_hooks = hooks_path_config.clone();
         }
         if custom_hooks.is_empty() {
@@ -261,10 +279,10 @@ impl Injector {
         }
         verbose!("Forwarding the git hooks to {custom_hooks}");
         let custom_path = repo.join(&custom_hooks);
-        if same_folder(&custom_path, hooks_path) {
+        if is_managed(&custom_path) {
+            // e.g.: set by hand to a folder of git flow hooks
             return Err(format!(
-                "gitflow.path.custom-hooks cannot be the git flow hooks folder {}",
-                hooks_path.display()
+                "gitflow.path.custom-hooks ({custom_hooks}) is a git flow hooks folder, forwarding to it would loop. Set it to your own hooks folder (e.g.: git config gitflow.path.custom-hooks .githooks) or remove it (git config --unset gitflow.path.custom-hooks)"
             ));
         }
         let forwarder = self.hook_contents("forward", "forward-hook")?;
@@ -747,6 +765,20 @@ mod tests {
         assert!(!is_our_pre_commit(&forwarder));
         assert!(!is_forwarder(b"#!/bin/sh\nctags -R\n"));
         assert!(!GIT_HOOKS.contains(&"pre-commit"));
+    }
+
+    #[test]
+    fn our_hooks_folder_is_not_a_custom_one() {
+        let dir = temp_hooks("managed");
+        let ours = HOOKS.get_file("common/pre-commit").unwrap().contents();
+        fs::write(dir.join("pre-commit"), ours).unwrap();
+        // A hooks folder from the previous location of the repository, which carries our pre-commit
+        assert!(
+            fs::read(dir.join("pre-commit")).is_ok_and(|contents| is_our_pre_commit(&contents))
+        );
+        assert!(same_folder(&dir, &dir.join(".")));
+        assert!(!same_folder(&dir, &dir.join("missing")));
+        fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

@@ -7,10 +7,8 @@
 
 custom_dir=$(git config --type=path --get gitflow.path.custom-hooks) || exit 0
 [[ -z $custom_dir ]] && exit 0
-if [[ $custom_dir != /* ]]; then
-  # Like git with core.hooksPath, relative paths are relative to the root of the working tree
-  custom_dir="$(git rev-parse --show-toplevel)/$custom_dir"
-fi
+# Like git with core.hooksPath, a relative path stays relative to the folder the hook runs in:
+# the root of the working tree, or $GIT_DIR for the receiving hooks (pre-receive, update, ...) and in bare repositories
 hook="$custom_dir/$(basename "$0")"
 [[ -e $hook ]] || exit 0
 if [[ ! -x $hook ]]; then
