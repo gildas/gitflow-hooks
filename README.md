@@ -72,8 +72,10 @@ You can also download the archive for your platform from the [releases](https://
 You can also build and install the `hook-it` application with [cargo](https://doc.rust-lang.org/cargo/) from this project's folder:
 
 ```bash
-cargo install --path .
+make install
 ```
+
+which runs `cargo install --path .`. Run `make help` to see the other recipes (`build`, `test`, `lint`, `fmt`, ...). `make lint` checks the Rust code with clippy, and the syntax of the hooks (plus [shellcheck](https://www.shellcheck.net), if installed).
 
 ## Usage
 
@@ -103,7 +105,7 @@ To inject the hooks in all the repositories found in a folder, use `--recursive`
 hook-it --recursive --exclude archive ~/Projects
 ```
 
-While editing the hooks, `--hooks-dir hooks` copies them from that folder instead of the embedded ones. Run `cargo install --path .` again to embed the new versions.
+While editing the hooks, `--hooks-dir hooks` copies them from that folder instead of the embedded ones. Run `make install` again to embed the new versions.
 
 ## Configuration
 

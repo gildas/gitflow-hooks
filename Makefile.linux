@@ -1,0 +1,12 @@
+# Makefile for Linux and macOS
+
+# Goodies
+SHELL := bash
+
+# Hooks
+HOOKS != find $(HOOKS_DIR) -type f
+SHELLCHECK_RUN = $Q if command -v $(SHELLCHECK) >/dev/null; then \
+		$(SHELLCHECK) --severity=error --shell=bash $(HOOKS) ; \
+	else \
+		$P "    $(SHELLCHECK) is not installed, skipping" ; \
+	fi

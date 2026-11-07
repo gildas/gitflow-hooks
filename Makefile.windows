@@ -1,0 +1,17 @@
+# Makefile for Windows
+
+# Goodies
+SHELL := pwsh.exe
+M = $(shell Write-Output "`e[34;1m>`e[0m")
+P = Write-Output
+
+# Tools
+CARGO := cargo.exe
+
+# Hooks
+HOOKS != (Get-ChildItem -Recurse -File $(HOOKS_DIR)).FullName
+SHELLCHECK_RUN = $Q if (Get-Command $(SHELLCHECK) -ErrorAction SilentlyContinue) { \
+		$(SHELLCHECK) --severity=error --shell=bash $(HOOKS) \
+	} else { \
+		$P "    $(SHELLCHECK) is not installed, skipping" \
+	}
