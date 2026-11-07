@@ -19,6 +19,7 @@ pub enum Language {
     Salesforce,
     Node,
     Go,
+    Rust,
 }
 
 impl Language {
@@ -28,6 +29,7 @@ impl Language {
             Language::Salesforce => "salesforce",
             Language::Node => "node",
             Language::Go => "go",
+            Language::Rust => "rust",
         }
     }
 
@@ -35,6 +37,9 @@ impl Language {
     pub fn detect(folder: &Path) -> Option<Language> {
         if folder.join("sfdx-project.json").exists() {
             Some(Language::Salesforce)
+        } else if folder.join("Cargo.toml").exists() {
+            // Before package.json, as a Rust backend may carry its web client at the root
+            Some(Language::Rust)
         } else if folder.join("package.json").exists() {
             Some(Language::Node)
         } else if folder.join("go.mod").exists() {
