@@ -415,8 +415,9 @@ function get_pull_request_state() { # {{{2
 [[ -z $DEVELOP_BRANCH ]] && DEVELOP_BRANCH=$(get_develop_branch)
 
 # Set the VERBOSE variable via environment or configuration
-if [[ $VERBOSE == 0 ]]; then
+if (( ! VERBOSE )); then
   if get_config_bool gitflow.verbose false; then
-    VERBOSE=1
+    warn "gitflow.verbose is set to true, enabling verbose output"
+    export VERBOSE=1
   fi
 fi
