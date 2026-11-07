@@ -1,56 +1,101 @@
 #!/usr/bin/env bash
 
+# list_repository_files prints the repository files matching the given pathspecs, shallowest first.
+# Only files tracked by git (or new, not ignored, files) are listed,
+# and files in hidden folders (.local/, .github/, ...), vendor/, or node_modules/ are skipped.
+function list_repository_files() { # {{{2
+  git -C "$ROOT_DIR" ls-files --cached --others --exclude-standard -- "$@" \
+    | grep -vE '(^|/)(\.[^/]+|vendor|node_modules)/' \
+    | awk -F/ '{ print NF "\t" $0 }' \
+    | sort -s -n -k1,1 \
+    | cut -f2- \
+    | uniq
+} # 2}}}
+
 function find_version_file() { # {{{2
-  local status
-  local file=$(grep -lE "^var[ ]+VERSION[ ]*=" "$ROOT_DIR"/*.go)
+  local file=$(get_config gitflow.path.versionfile "")
+  local candidate
 
-  status=$? ; [[ $status != 0 ]] && ERROR="Failed to grep through $ROOT_DIR" && return $status
-  [[ -z $file ]] && ERROR="Failed to find a file carrying the version" && return 1
+  if [[ -z $file ]]; then
+    # Use the shallowest Go file that declares VERSION (e.g.: version.go, src/backend/version.go)
+    while IFS= read -r candidate; do
+      if grep -qE "^var[ ]+VERSION[ ]*=" "$ROOT_DIR/$candidate"; then
+        file=$candidate
+        break
+      fi
+    done < <(list_repository_files '*.go')
+  fi
+  [[ -n $file && $file != /* ]] && file="$ROOT_DIR/$file"
 
-  printf "%s" $file
+  [[ -f $file ]] || return $(error "Failed to find a file carrying the version in $ROOT_DIR")
+
+  printf "%s" "$file"
   return 0
 } # 2}}}
 
 function get_version() { # {{{2
-  local status
   local file=$1
-  local version=$(grep -E "^var[ ]+VERSION[ ]*=" $file | sed -E "s/^var[ ]+VERSION[ ]*=[ ]*\"([0-9]+\.[0-9]+\.[0-9]+)\"/\1/")
-  status=$? ; (( status )) && ERROR="Failed to get the version from $file" && return $status
+  local version=$(grep -E "^var[ ]+VERSION[ ]*=" "$file" | sed -E "s/^var[ ]+VERSION[ ]*=[ ]*\"([0-9]+\.[0-9]+\.[0-9]+)\"/\1/")
+  local status=$? ; (( status )) && { (exit $status); return $(error "Failed to get the version from $file"); }
   printf "%s" $version
   return 0
 } # 2}}}
 
-function update_version_file() { # {{{2
+function update_and_stage_package_json() { # {{{2
+  local version=$1
+  local file=$(get_config gitflow.path.packagejson "")
+  local status
+
+  # Use the shallowest package.json (e.g.: package.json, src/frontend/package.json)
+  [[ -z $file ]] && file=$(list_repository_files package.json '*/package.json' | head -n 1)
+  [[ -n $file && $file != /* ]] && file="$ROOT_DIR/$file"
+
+  if [[ ! -f $file ]]; then
+    trace "No package.json found, skipping"
+    return 0
+  fi
+
+  verbose "Updating: ${file##*/} to ${version}"
+  sed -Ei.bak \
+    -e "/^[ \t]*\"version\":[ \t]*\"/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" \
+    "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/} "); }
+  git add "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/} "); }
+  success "Updated ${file##*/}"
+  rm -f "$file.bak"
+  return 0
+} # 2}}}
+
+function update_and_stage_version_file() { # {{{2
   local file=$1
   local version=$2
   local status
 
   verbose "Updating: ${file##*/} to ${version}"
   sed -Ei.bak "/^var[ ]+VERSION[ ]*=/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" "$file"
-  status=$?
-  if (( status )); then
-    error "Failed to update ${file##*/}, exit code: $status"
-    return $status
-  else
-    success "Updated ${file##*/}"
-    rm -f "$file.bak"
-  fi
-  return 0
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/}"); }
+  git add "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/}"); }
+  success "Updated ${file##*/}"
+  rm -f "$file.bak"
+  # Update and stage the package.json file as well in case the repository contains a web client
+  # This happens when this repository is a Go backend with an embedded web client
+  return $(update_and_stage_package_json "$version")
 } # 2}}}
 
 # lint_staged_files runs golangci-lint and staticcheck on the packages of the staged Go files
 function lint_staged_files() { # {{{2
-  local status
   local files=( $(git diff --cached --name-only --diff-filter=ACMR -- '*.go') )
+  local status
   (( ${#files[@]} )) || return 0
   local packages=( $(for file in "${files[@]}"; do printf "./%s\n" "$(dirname "$file")"; done | sort -u) )
 
   if command -v golangci-lint &>/dev/null; then
     verbose "Running golangci-lint on the following packages: ${packages[*]}"
     golangci-lint run "${packages[@]}"
-    status=$?
-    (( status )) && ERROR="The golangci-lint tool found issues" && return 1
-    (( ! status )) && success "The golangci-lint tool found no issues"
+    status=$? ; (( status )) && { (exit $status); return $(error "The golangci-lint tool found issues"); }
+    success "The golangci-lint tool found no issues"
   else
     warn "golangci-lint is not installed, skipping"
   fi
@@ -58,9 +103,8 @@ function lint_staged_files() { # {{{2
   if command -v staticcheck &>/dev/null; then
     verbose "Running staticcheck on the following packages: ${packages[*]}"
     staticcheck "${packages[@]}"
-    status=$?
-    (( status )) && ERROR="The staticcheck tool found issues" && return 1
-    (( ! status )) && success "The staticcheck tool found no issues"
+    status=$? ; (( status )) && { (exit $status); return $(error "The staticcheck tool found issues"); }
+    success "The staticcheck tool found no issues"
   else
     warn "staticcheck is not installed, skipping"
   fi
@@ -76,7 +120,7 @@ function prettify_staged_files() { # {{{2
 
   if [[ -z $gofmt ]]; then
     gofmt=$GOROOT/bin/gofmt
-    [[ ! -e $gofmt ]] && ERROR="The gofmt tool is missing" && return 1
+    [[ ! -e $gofmt ]] && return $(error "The gofmt tool is missing")
   fi
 
   for file in "${files[@]}"; do
@@ -105,6 +149,7 @@ function prettify_staged_files() { # {{{2
       rm -f "$formatted"
     fi
   done
-  (( stop_processing )) && ERROR="gofmt could not format some files" && return 1
+  (( stop_processing )) && return $(error "gofmt could not format some files")
+  success "The gofmt tool formatted the files successfully"
   return 0
 } # 2}}}
