@@ -1,75 +1,161 @@
 #!/usr/bin/env bash
 
 function find_version_file() { # {{{2
-  local file="sfdx-project.json"
+  local file=$(get_config gitflow.path.versionfile "sfdx-project.json")
 
-  [[ -z $file ]] && ERROR="Failed to find $file" && return 1
+  [[ -f $file ]] || return $(error "Failed to find a file carrying the version in $ROOT_DIR")
 
   printf "%s" $file
   return 0
 } # 2}}}
 
 function get_version() { # {{{2
-  local status
   local file=$1
-  local version=$(grep -E '^[ \t]*"versionName":' "$file" | sed -E 's/^[ \t]*"versionName":[ \t]*"([0-9]+\.[0-9]+"[ \t]*,$/\1/')
+  local version=$(grep -E '^[ \t]*"versionNumber":' "$file" | sed -E 's/^[ \t]*"versionNumber":[ \t]*"([0-9]+\.[0-9]+\.[0-9]+)\.NEXT"[ \t]*,$/\1/')
+  local status=$? ; (( status )) && { (exit $status); return $(error "Failed to get the version from $file"); }
   
-  version="${version}.0" # Salesforce does not support patch numbers
-  status=$? ; (( status )) && ERROR="Failed to get the version from $file" && return $status
   printf "%s" $version
   return 0
 } # 2}}}
 
-function update_version_file() { # {{{2
+function update_and_stage_sfdx_project() { # {{{2
   local file=$1
   local version=$2
+  local version_name=$version
   local status
 
-  # Salesforce does not support patch numbers, so we need to remove it
-  version=${version%.0}
+  if ! get_config_bool gitflow.version-patch-supported true ; then
+    # This project does not support patch numbers, so we need to remove it from the version name
+    version_name=${version_name%.0}
+  fi
+
+  verbose "Updating: ${file##*/} to ${version_name}"
+  sed -Ei.bak \
+    -e "/^[ \t]*\"versionName\":[ \t]*\"/s/[0-9]+\.[0-9]+(\.[0-9]+)?/${version_name}/" \
+    -e "/^[ \t]*\"versionNumber\":[ \t]*\"/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" \
+    "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/}"); }
+  git add "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/}"); }
+  success "Updated ${file##*/}"
+  rm -f "$file.bak"
+  return 0
+} # 2}}}
+
+function update_and_stage_package_json() { # {{{2
+  local version=$1
+  local file="package.json"
+  local status
+
+  if [[ ! -r $file ]]; then
+    verbose "No package.json found, skipping"
+    return 0
+  fi
+
   verbose "Updating: ${file##*/} to ${version}"
-  sed -Ei.bak "/^[ \t]*\"versionName\":[ \t]*\"/s/[0-9]+\.[0-9]+/${version}/" "$file"
-  status=$?
-  if (( status )); then
-    error "Failed to update ${file##*/}, exit code: $status"
-    return $status
-  else
+  sed -Ei.bak \
+    -e "/^[ \t]*\"version\":[ \t]*\"/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" \
+    "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/} "); }
+  git add "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/} "); }
+  success "Updated ${file##*/}"
+  rm -f "$file.bak"
+  return 0
+} # 2}}}
+
+function update_and_stage_postinstall() { # {{{2
+  local version=$1
+  local file
+  local status
+
+  if ! get_config_bool gitflow.version-patch-supported true ; then
+    # This project does not support patch numbers, so we need to remove it from the version name
+    version=${version%.0}
+  fi
+
+  file=$(find . -type f -name PostInstall.cls -print -quit)
+  if [[ -f $file ]]; then
+    verbose "Updating: ${file##*/} to ${version}"
+    sed -Ei.bak \
+      -e "s/String PACKAGE_VERSION = '.*';/String PACKAGE_VERSION = '$version';/" \
+      "$file"
+    status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/} "); }
+    git add "$file"
+    status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/} "); }
     success "Updated ${file##*/}"
     rm -f "$file.bak"
+  else
+    verbose "No PostInstall.cls found, skipping"
   fi
+
   return 0
 } # 2}}}
 
-# bump_version bumps the given version by the given bump
-#
-# We have to overwrite the default function for Salesforce as they do not support patch bump.s
-#
-# bump can be one of major, minor
-function bump_version() { # {{{2
+function update_and_stage_loggers() { # {{{2
   local version=$1
-  local what=$2
-  local components=( $(echo $version | tr "."  " ") )
+  local file
+  local status
 
-  case $what in
-    major)
-      printf "%s.0.0" $((components[0] + 1))
-      ;;
-    minor)
-      printf "%s.%s.0" ${components[0]} $((components[1] + 1))
-      ;;
-    patch)
-      ERROR="Salesforce does not support patch bumps"
-      error "Salesforce does not support patch bumps"
-      return 1
-      ;;
-    *)
-      ERROR="Unsupported bump type: $what"
-      error "Unsupported bump type: $what"
-      return 1
-  esac
+  if ! get_config_bool gitflow.version-patch-supported true ; then
+    # This project does not support patch numbers, so we need to remove it from the version name
+    version=${version%.0}
+  fi
+
+  # The AURA logger
+  file=$(find . -type f -name logger.js -print -quit)
+  if [[ -f $file ]]; then
+    verbose "Updating: ${file##*/} to ${version}"
+    sed -Ei.bak \
+      -e "/[ \t]*var version = '/s/var version = '.*';/var version = '$version';/" \
+      "$file"
+    status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/} "); }
+    git add "$file"
+    status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/} "); }
+    success "Updated ${file##*/}"
+    rm -f "$file.bak"
+  else
+    verbose "No logger found, skipping"
+  fi
+
+  # The LWC logger
+  file=$(find . -type f -name genforceLogger.js -print -quit)
+  if [[ -f $file ]]; then
+    verbose "Updating: ${file##*/} to ${version}"
+    sed -Ei.bak \
+      -e "s/version = '.*';/version = '$version';/" \
+      "$file"
+    status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/} "); }
+    git add "$file"
+    status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/} "); }
+    success "Updated ${file##*/}"
+    rm -f "$file.bak"
+  else
+    verbose "No logger found, skipping"
+  fi
+
   return 0
 } # 2}}}
 
+function update_and_stage_version_file() { # {{{2
+  local sfdx_project="$1"
+  local version="$2"
+  local status
+
+  update_and_stage_sfdx_project "$sfdx_project" "$version"
+  status=$? ; (( status )) && return $status
+
+  update_and_stage_package_json "$version"
+  status=$? ; (( status )) && return $status
+
+  update_and_stage_postinstall "$version"
+  status=$? ; (( status )) && return $status
+
+  update_and_stage_loggers "$version"
+  status=$? ; (( status )) && return $status
+
+  return 0
+} # 2}}}
 
 # find_project_dir prints the closest folder containing a sfdx-project.json for the given file
 function find_project_dir() { # {{{2
@@ -85,12 +171,15 @@ function lint_staged_files() { # {{{2
   (( ${#files[@]} )) || return 0
   local dir=$(find_project_dir "${files[0]}")
   local eslint="$dir/node_modules/.bin/eslint"
+  local status
+
   if [[ ! -x $eslint ]]; then
     warn "eslint is not installed in the Salesforce project, skipping"
     return 0
   fi
   (cd "$dir" && "$eslint" "${files[@]/#/$ROOT_DIR/}")
-  (( $? )) && ERROR="The eslint tool found issues" && return 1
+  status=$? ; (( status )) && { (exit $status); return $(error "The eslint tool found issues"); }
+  success "The eslint tool found no issues"
   return 0
 } # 2}}}
 
@@ -100,13 +189,16 @@ function prettify_staged_files() { # {{{2
   (( ${#files[@]} )) || return 0
   local dir=$(find_project_dir "${files[0]}")
   local prettier="$dir/node_modules/.bin/prettier"
+  local status
 
   if [[ ! -x $prettier ]]; then
     verbose "prettier is not installed in the Salesforce project, skipping"
     return 0
   fi
   (cd "$dir" && "$prettier" --write --ignore-unknown --log-level warn "${files[@]/#/$ROOT_DIR/}")
-  (( $? )) && ERROR="The prettier tool could not format some files" && return 1
+  status=$? ; (( status )) && { (exit $status); return $(error "The prettier tool could not format some files"); }
   git add "${files[@]}"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage the formatted files"); }
+  success "The prettier tool formatted the files successfully"
   return 0
 } # 2}}}
