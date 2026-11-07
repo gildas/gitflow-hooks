@@ -95,7 +95,9 @@ You can also choose the branches on the command line, which takes precedence ove
 hook-it --main master --develop dev /path/to/repo
 ```
 
-(`--master` and `--dev` work as well.) These flags are only used when `hook-it` initializes git-flow. If the repository already uses git-flow with other branches, `hook-it` leaves them alone and displays a warning; run `git flow init -f` in the repository to change them.
+(`--master` and `--dev` work as well.) The main branch must already exist, locally or on `origin` (unless the repository has no branch at all), so a typo does not create a new production branch; the develop branch is created from the main branch if needed. If git-flow ends up using other branches than the requested ones, `hook-it` stops with an error.
+
+These flags are only used when `hook-it` initializes git-flow. If the repository already uses git-flow with other branches, `hook-it` leaves them alone and displays a warning; run `git flow init -f` in the repository to change them.
 
 It also checks that your installed git-flow is git-flow-next or the AVH edition, and stops if it is not the case.
 
