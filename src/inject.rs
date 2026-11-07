@@ -220,6 +220,7 @@ impl Injector {
                 })?;
             }
         }
+        self.preserve_custom_pre_commit(&hooks_path)?;
         verbose!("Copying hooks");
         for folder in ["common", language.name()] {
             self.copy_hooks(folder, &hooks_path).map_err(|err| {
@@ -407,6 +408,42 @@ impl Injector {
             )? == "true")
     }
 
+    /// Moves the user's own pre-commit hook to pre-commit.local, so ours does not overwrite it
+    /// Our pre-commit runs pre-commit.local after its own checks
+    fn preserve_custom_pre_commit(&self, hooks_path: &Path) -> Result<(), String> {
+        let pre_commit = hooks_path.join("pre-commit");
+        let Ok(contents) = fs::read(&pre_commit) else {
+            return Ok(());
+        };
+        if is_our_pre_commit(&contents) {
+            return Ok(());
+        }
+        let local = hooks_path.join("pre-commit.local");
+        if local.exists() {
+            return Err(format!(
+                "{} is not a git flow hook and {} already exists, move one of them away first",
+                pre_commit.display(),
+                local.display()
+            ));
+        }
+        if self.noop {
+            println!("Would move {} to {}", pre_commit.display(), local.display());
+            return Ok(());
+        }
+        fs::rename(&pre_commit, &local).map_err(|err| {
+            format!(
+                "Error while moving {} to {}: {err}",
+                pre_commit.display(),
+                local.display()
+            )
+        })?;
+        warning!(
+            "Moved your pre-commit hook to {}, it will run after the git flow pre-commit hook",
+            local.display()
+        );
+        Ok(())
+    }
+
     /// Copies the hooks of the given folder (common or a language) into the hooks path
     fn copy_hooks(&self, folder: &str, hooks_path: &Path) -> Result<(), String> {
         match &self.hooks_source {
@@ -494,6 +531,11 @@ impl Injector {
     }
 }
 
+/// Tells if the pre-commit hook is one of ours (any version), they all load our functions.sh
+fn is_our_pre_commit(contents: &[u8]) -> bool {
+    String::from_utf8_lossy(contents).contains("\"$HOOKS_DIR\"/functions.sh")
+}
+
 #[cfg(unix)]
 fn make_executable(path: &Path) -> std::io::Result<()> {
     use std::os::unix::fs::PermissionsExt;
@@ -503,4 +545,70 @@ fn make_executable(path: &Path) -> std::io::Result<()> {
 #[cfg(not(unix))]
 fn make_executable(_path: &Path) -> std::io::Result<()> {
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn injector() -> Injector {
+        Injector {
+            git: "git".into(),
+            hooks_dir: ".git/hooks".into(),
+            sources: Vec::new(),
+            hooks_source: None,
+            use_pull_requests: false,
+            main_branch: None,
+            develop_branch: None,
+            noop: false,
+        }
+    }
+
+    fn temp_hooks(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("hook-it-{name}-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    #[test]
+    fn recognizes_our_pre_commit() {
+        let ours = HOOKS.get_file("common/pre-commit").unwrap().contents();
+        assert!(is_our_pre_commit(ours));
+        assert!(!is_our_pre_commit(b"#!/bin/sh\nmake lint\n"));
+    }
+
+    #[test]
+    fn moves_custom_pre_commit() {
+        let dir = temp_hooks("custom");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        injector().preserve_custom_pre_commit(&dir).unwrap();
+        assert!(!dir.join("pre-commit").exists());
+        assert_eq!(
+            fs::read_to_string(dir.join("pre-commit.local")).unwrap(),
+            "#!/bin/sh\nmake lint\n"
+        );
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn keeps_our_pre_commit() {
+        let dir = temp_hooks("ours");
+        let ours = HOOKS.get_file("common/pre-commit").unwrap().contents();
+        fs::write(dir.join("pre-commit"), ours).unwrap();
+        injector().preserve_custom_pre_commit(&dir).unwrap();
+        assert!(dir.join("pre-commit").exists());
+        assert!(!dir.join("pre-commit.local").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn refuses_to_overwrite_existing_local() {
+        let dir = temp_hooks("both");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        fs::write(dir.join("pre-commit.local"), "#!/bin/sh\nmake test\n").unwrap();
+        assert!(injector().preserve_custom_pre_commit(&dir).is_err());
+        assert!(dir.join("pre-commit").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
 }

@@ -10,9 +10,29 @@ source "$HOOKS_DIR"/functions.sh
 
 trace "Hook: pre-commit"
 
+# Runs the user's custom pre-commit hook, if any, after ours
+# Its location comes from gitflow.path.pre-commit (relative to the repository root), defaults to pre-commit.local in the hooks folder
+function run_custom_pre_commit() { # {{{2
+  local custom_hook
+  custom_hook=$(git config --get gitflow.path.pre-commit)
+  if [[ -n $custom_hook ]]; then
+    [[ $custom_hook != /* ]] && custom_hook="$ROOT_DIR/$custom_hook"
+    [[ -e $custom_hook ]] || die "The custom pre-commit hook $custom_hook (gitflow.path.pre-commit) does not exist"
+  else
+    custom_hook="$HOOKS_DIR/pre-commit.local"
+    [[ -e $custom_hook ]] || exit 0
+  fi
+  [[ -x $custom_hook ]] || die "The custom pre-commit hook $custom_hook is not executable, run: chmod +x $custom_hook"
+  verbose "Running the custom pre-commit hook $custom_hook"
+  exec "$custom_hook" "$@"
+} # 2}}}
+
 if ! get_config_bool gitflow.allow-master-commit; then
   verbose "Checking if the current branch is the $MASTER_BRANCH branch"
-  git rev-parse -q --verify MERGE_HEAD >/dev/null && verbose "Merge in progress, skipping branch check" && exit 0
+  if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    verbose "Merge in progress, skipping branch check"
+    run_custom_pre_commit "$@"
+  fi
   BRANCH=$(git symbolic-ref HEAD)
   [[ $BRANCH == "refs/heads/$MASTER_BRANCH" ]] && die "Direct commits to the $MASTER_BRANCH branch are forbidden"
 fi
@@ -46,4 +66,4 @@ if get_config_bool gitflow.must-pass-lint true; then
   fi
 fi
 
-exit 0
+run_custom_pre_commit "$@"

@@ -193,6 +193,22 @@ You can turn off the Appveyor feature with:
 git config --bool gitflow.bump-appveyor false
 ```
 
+### Custom pre-commit hook
+
+You can run your own pre-commit hook as well. It runs **after** the checks of the git flow pre-commit hook, and only if they pass. If it fails, the commit fails.
+
+By default, the hooks run `pre-commit.local` from the hooks folder (e.g., `.git/hooks/pre-commit.local`), if it exists. If the repository already has a pre-commit hook that is not ours, `hook-it` moves it to `pre-commit.local` instead of overwriting it (and stops if `pre-commit.local` already exists).
+
+You can also use a script stored in the repository, its path is relative to the root of the repository:
+
+```bash
+git config gitflow.path.pre-commit scripts/pre-commit
+```
+
+The custom hook must be executable, otherwise the commit fails. When `gitflow.path.pre-commit` is set, the commit also fails if the script does not exist.
+
+While a merge is in progress, the git flow checks are skipped, but the custom hook still runs.
+
 ### Version file
 
 By default, the scripts look for the file carrying the version of the repository:
