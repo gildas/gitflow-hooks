@@ -87,7 +87,17 @@ hook-it /path/to/repo
 
 Use `-v` to display more information and `--noop` (or `--dry-run`) to see what would be done without modifying anything. Check all the options with `hook-it --help`.
 
-`hook-it` checks that the repository is valid and has git-flow already; if not, it tries to initialize git-flow in the repository.
+`hook-it` checks that the repository is valid and has git-flow already; if not, it tries to initialize git-flow in the repository. With git-flow-next, it uses the branch names from `gitflow.branch.master` and `gitflow.branch.develop` if they are set anywhere in your git config (e.g., `git config --global gitflow.branch.develop dev`), instead of git-flow-next's defaults (`main` and `develop`).
+
+You can also choose the branches on the command line, which takes precedence over the git config:
+
+```bash
+hook-it --main master --develop dev /path/to/repo
+```
+
+(`--master` and `--dev` work as well.) The main branch must already exist, locally or on `origin` (unless the repository has no branch at all), so a typo does not create a new production branch; the develop branch is created from the main branch if needed. If git-flow ends up using other branches than the requested ones, `hook-it` stops with an error.
+
+These flags are only used when `hook-it` initializes git-flow. If the repository already uses git-flow with other branches, `hook-it` leaves them alone and displays a warning; run `git flow init -f` in the repository to change them.
 
 It also checks that your installed git-flow is git-flow-next or the AVH edition, and stops if it is not the case.
 
