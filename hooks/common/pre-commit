@@ -10,14 +10,25 @@ source "$HOOKS_DIR"/functions.sh
 
 trace "Hook: pre-commit"
 
-# Runs the user's custom pre-commit hook, if any, after ours
-# Its location comes from gitflow.path.pre-commit (relative to the repository root), defaults to pre-commit.local in the hooks folder
+# Runs the user's custom pre-commit hook, if any, after ours. The first found wins:
+# - gitflow.path.pre-commit (relative to the repository root),
+# - pre-commit in gitflow.path.custom-hooks, the hooks folder (e.g.: .githooks) used before hook-it took over core.hooksPath,
+# - pre-commit.local in the hooks folder
 function run_custom_pre_commit() { # {{{2
-  local custom_hook
-  custom_hook=$(git config --get gitflow.path.pre-commit)
+  local custom_hook custom_dir
+  custom_hook=$(git config --type=path --get gitflow.path.pre-commit)
+  custom_dir=$(git config --type=path --get gitflow.path.custom-hooks)
+  [[ -n $custom_dir && $custom_dir != /* ]] && custom_dir="$ROOT_DIR/$custom_dir"
   if [[ -n $custom_hook ]]; then
     [[ $custom_hook != /* ]] && custom_hook="$ROOT_DIR/$custom_hook"
     [[ -e $custom_hook ]] || die "The custom pre-commit hook $custom_hook (gitflow.path.pre-commit) does not exist"
+  elif [[ -n $custom_dir && -e $custom_dir/pre-commit ]]; then
+    custom_hook="$custom_dir/pre-commit"
+    if [[ ! -x $custom_hook ]]; then
+      # Like git, ignore the hooks that are not executable
+      warn "The custom pre-commit hook $custom_hook was ignored because it is not executable"
+      exit 0
+    fi
   else
     custom_hook="$HOOKS_DIR/pre-commit.local"
     [[ -e $custom_hook ]] || exit 0

@@ -92,7 +92,7 @@ impl Injector {
         // 1/ make sure git flow is installed and initialized
         let flavor = self.git_flow_flavor(repo)?;
         verbose!("git flow: {flavor:?}");
-        if self.is_git_flow_initialized(repo)? {
+        if self.is_git_flow_initialized(repo)? || self.import_shared_config(repo, flavor)? {
             self.check_branches(repo, flavor)?;
         } else {
             verbose!("Initializing git flow in repository {}", repo.display());
@@ -230,7 +230,91 @@ impl Injector {
                 )
             })?;
         }
+
+        // 5/ make sure git runs our hooks, even when the repository has its own hooks folder (e.g.: a committed .githooks)
+        self.take_over_hooks_path(repo, &hooks_path)?;
         Ok(())
+    }
+
+    /// git only runs the hooks of core.hooksPath, which would skip our pre-commit hook
+    /// When core.hooksPath points to another folder, it is saved in gitflow.path.custom-hooks and core.hooksPath points to our hooks,
+    /// which forward every git hook to the custom folder (our pre-commit runs the custom pre-commit after its own checks)
+    /// The forwarders are installed after our hooks, so core.hooksPath only moves once everything is in place
+    fn take_over_hooks_path(&self, repo: &Path, hooks_path: &Path) -> Result<(), String> {
+        let hooks_path_config =
+            self.git_get(repo, &["config", "--type=path", "--get", "core.hooksPath"])?;
+        let mut custom_hooks = self.git_get(
+            repo,
+            &[
+                "config",
+                "--type=path",
+                "--get",
+                "gitflow.path.custom-hooks",
+            ],
+        )?;
+        if !hooks_path_config.is_empty() && !same_folder(&repo.join(&hooks_path_config), hooks_path)
+        {
+            custom_hooks = hooks_path_config.clone();
+        }
+        if custom_hooks.is_empty() {
+            return Ok(());
+        }
+        verbose!("Forwarding the git hooks to {custom_hooks}");
+        let custom_path = repo.join(&custom_hooks);
+        if same_folder(&custom_path, hooks_path) {
+            return Err(format!(
+                "gitflow.path.custom-hooks cannot be the git flow hooks folder {}",
+                hooks_path.display()
+            ));
+        }
+        let forwarder = self.hook_contents("forward", "forward-hook")?;
+        for name in GIT_HOOKS {
+            let destination = hooks_path.join(name);
+            if let Ok(contents) = fs::read(&destination)
+                && !is_forwarder(&contents)
+            {
+                // Not ours (e.g.: a hook installed by another tool in .git/hooks), leave it alone
+                if custom_path.join(name).exists() {
+                    warning!(
+                        "{} is not a git flow hook, {} will not run. Move it away and run hook-it again",
+                        destination.display(),
+                        custom_path.join(name).display()
+                    );
+                }
+                continue;
+            }
+            if self.noop {
+                println!("Would write {}", destination.display());
+                continue;
+            }
+            fs::write(&destination, &forwarder)
+                .and_then(|_| make_executable(&destination))
+                .map_err(|err| format!("Error while writing {}: {err}", destination.display()))?;
+        }
+        self.git_config(repo, "gitflow.path.custom-hooks", &custom_hooks)?;
+        let hooks_path_str = hooks_path.to_string_lossy();
+        if hooks_path_config.is_empty() || !same_folder(&repo.join(&hooks_path_config), hooks_path)
+        {
+            self.git_config(repo, "core.hooksPath", &hooks_path_str)?;
+            warning!(
+                "core.hooksPath now points to {hooks_path_str}, the hooks from {custom_hooks} still run (pre-commit after the git flow checks). If core.hooksPath changes again (e.g.: husky), run hook-it again"
+            );
+        }
+        Ok(())
+    }
+
+    /// Gives the contents of a hook, from the hooks folder given on the command line or the embedded ones
+    fn hook_contents(&self, folder: &str, name: &str) -> Result<Vec<u8>, String> {
+        match &self.hooks_source {
+            Some(source) => {
+                let path = source.join(folder).join(name);
+                fs::read(&path).map_err(|err| format!("{}: {err}", path.display()))
+            }
+            None => HOOKS
+                .get_file(format!("{folder}/{name}"))
+                .map(|file| file.contents().to_vec())
+                .ok_or_else(|| format!("No embedded hook {folder}/{name}")),
+        }
     }
 
     /// Finds which git flow is installed, only git flow AVH and git-flow-next support hooks
@@ -408,6 +492,40 @@ impl Injector {
             )? == "true")
     }
 
+    /// Copies the git-flow-next configuration shared in the repository (.gitflow, from git flow init --shared) into the local config
+    /// git-flow-next reads .gitflow by itself, but git flow init ignores it and the hooks only read the git config,
+    /// so a fresh clone would get git flow's default branches instead of the shared ones
+    /// Tells if the configuration was imported
+    fn import_shared_config(&self, repo: &Path, flavor: Flavor) -> Result<bool, String> {
+        let shared = repo.join(".gitflow");
+        if flavor != Flavor::Next || !shared.is_file() {
+            return Ok(false);
+        }
+        let shared_str = shared.to_string_lossy();
+        if self.git_get(
+            repo,
+            &[
+                "config",
+                "--file",
+                &shared_str,
+                "--bool",
+                "gitflow.initialized",
+            ],
+        )? != "true"
+        {
+            return Ok(false);
+        }
+        verbose!("Importing the shared git flow configuration from {shared_str}");
+        let entries = self.git_get(repo, &["config", "--file", &shared_str, "--list", "-z"])?;
+        for entry in entries.split('\0').filter(|entry| !entry.is_empty()) {
+            let (key, value) = entry.split_once('\n').unwrap_or((entry, ""));
+            if key.starts_with("gitflow.") {
+                self.git_config(repo, key, value)?;
+            }
+        }
+        Ok(true)
+    }
+
     /// Moves the user's own pre-commit hook to pre-commit.local, so ours does not overwrite it
     /// Our pre-commit runs pre-commit.local after its own checks
     fn preserve_custom_pre_commit(&self, hooks_path: &Path) -> Result<(), String> {
@@ -531,6 +649,50 @@ impl Injector {
     }
 }
 
+/// The git hooks forwarded to gitflow.path.custom-hooks (see githooks(5)), pre-commit is ours and runs the custom one itself
+const GIT_HOOKS: [&str; 27] = [
+    "applypatch-msg",
+    "pre-applypatch",
+    "post-applypatch",
+    "pre-merge-commit",
+    "prepare-commit-msg",
+    "commit-msg",
+    "post-commit",
+    "pre-rebase",
+    "post-checkout",
+    "post-merge",
+    "pre-push",
+    "pre-receive",
+    "update",
+    "proc-receive",
+    "post-receive",
+    "post-update",
+    "reference-transaction",
+    "push-to-checkout",
+    "pre-auto-gc",
+    "post-rewrite",
+    "sendemail-validate",
+    "fsmonitor-watchman",
+    "p4-changelist",
+    "p4-prepare-changelist",
+    "p4-post-changelist",
+    "p4-pre-submit",
+    "post-index-change",
+];
+
+/// Tells if the hook is one of our forwarders
+fn is_forwarder(contents: &[u8]) -> bool {
+    String::from_utf8_lossy(contents).contains("# gitflow-hooks: forwarder")
+}
+
+/// Tells if both paths are the same folder, when they exist, or the same path otherwise
+fn same_folder(left: &Path, right: &Path) -> bool {
+    match (left.canonicalize(), right.canonicalize()) {
+        (Ok(left), Ok(right)) => left == right,
+        _ => left == right,
+    }
+}
+
 /// Tells if the pre-commit hook is one of ours (any version), they all load our functions.sh
 fn is_our_pre_commit(contents: &[u8]) -> bool {
     String::from_utf8_lossy(contents).contains("\"$HOOKS_DIR\"/functions.sh")
@@ -576,6 +738,15 @@ mod tests {
         let ours = HOOKS.get_file("common/pre-commit").unwrap().contents();
         assert!(is_our_pre_commit(ours));
         assert!(!is_our_pre_commit(b"#!/bin/sh\nmake lint\n"));
+    }
+
+    #[test]
+    fn recognizes_our_forwarder() {
+        let forwarder = injector().hook_contents("forward", "forward-hook").unwrap();
+        assert!(is_forwarder(&forwarder));
+        assert!(!is_our_pre_commit(&forwarder));
+        assert!(!is_forwarder(b"#!/bin/sh\nctags -R\n"));
+        assert!(!GIT_HOOKS.contains(&"pre-commit"));
     }
 
     #[test]
