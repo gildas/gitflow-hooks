@@ -6,7 +6,7 @@ use std::process::Command;
 
 use include_dir::{Dir, include_dir};
 
-use crate::output::verbose;
+use crate::output::{verbose, warning};
 
 /// The hooks shipped with hook-it, embedded at compile time
 static HOOKS: Dir = include_dir!("$CARGO_MANIFEST_DIR/hooks");
@@ -67,6 +67,10 @@ pub struct Injector {
     /// Copy the hooks from this folder instead of the embedded ones
     pub hooks_source: Option<PathBuf>,
     pub use_pull_requests: bool,
+    /// The main (production) branch name to use when initializing git flow
+    pub main_branch: Option<String>,
+    /// The develop branch name to use when initializing git flow
+    pub develop_branch: Option<String>,
     pub noop: bool,
 }
 
@@ -88,12 +92,51 @@ impl Injector {
         // 1/ make sure git flow is installed and initialized
         let flavor = self.git_flow_flavor(repo)?;
         verbose!("git flow: {flavor:?}");
-        if !self.is_git_flow_initialized(repo)? {
+        if self.is_git_flow_initialized(repo)? {
+            self.check_branches(repo, flavor)?;
+        } else {
             verbose!("Initializing git flow in repository {}", repo.display());
-            self.git_run(repo, &["flow", "init", "-fd", "--tag", "v"])
-                .map_err(|err| format!("Error while initializing git flow in repository {}: {err}", repo.display()))?;
+            // Branch names: from the command line, else from the git config (any level), else git flow's defaults
+            // git-flow-next ignores the git flow AVH branch names when they are not in the repository config
+            // (e.g.: gitflow.branch.develop=dev in ~/.gitconfig), and would create main and develop instead
+            let master = match &self.main_branch {
+                Some(branch) => branch.clone(),
+                None => self.git_get(repo, &["config", "--get", "gitflow.branch.master"])?,
+            };
+            let develop = match &self.develop_branch {
+                Some(branch) => branch.clone(),
+                None => self.git_get(repo, &["config", "--get", "gitflow.branch.develop"])?,
+            };
+            let mut args = vec!["flow", "init", "-fd", "--tag", "v"];
+            match flavor {
+                Flavor::Next => {
+                    if !master.is_empty() {
+                        args.extend(["--main", master.as_str()]);
+                    }
+                    if !develop.is_empty() {
+                        args.extend(["--develop", develop.as_str()]);
+                    }
+                }
+                Flavor::Avh => {
+                    // git flow AVH has no flags for the branch names, it uses the ones from the git config
+                    if let Some(branch) = &self.main_branch {
+                        self.git_config(repo, "gitflow.branch.master", branch)?;
+                    }
+                    if let Some(branch) = &self.develop_branch {
+                        self.git_config(repo, "gitflow.branch.develop", branch)?;
+                    }
+                }
+            }
+            self.git_run(repo, &args).map_err(|err| {
+                format!(
+                    "Error while initializing git flow in repository {}: {err}",
+                    repo.display()
+                )
+            })?;
             if !self.noop && !self.is_git_flow_initialized(repo)? {
-                return Err("git flow was not installed properly, please install it manually".into());
+                return Err(
+                    "git flow was not installed properly, please install it manually".into(),
+                );
             }
         }
         // Resetting the hooks folder, in case the repo was moved
@@ -102,7 +145,11 @@ impl Injector {
         // 2/ configure git flow
         verbose!("Configuring gitflow");
         let hooks_path_str = hooks_path.to_string_lossy();
-        let use_pull_requests = if self.use_pull_requests { "true" } else { "false" };
+        let use_pull_requests = if self.use_pull_requests {
+            "true"
+        } else {
+            "false"
+        };
         self.git_config(repo, "gitflow.path.hooks", &hooks_path_str)?;
         self.git_config(repo, "gitflow.prefix.versiontag", "v")?;
         if flavor == Flavor::Next {
@@ -116,7 +163,10 @@ impl Injector {
         self.git_config(repo, "gitflow.hotfix.finish.message", "Hotfix %tag%")?;
         self.git_config(repo, "gitflow.release.finish.message", "Release %tag%")?;
         self.git_config(repo, "gitflow.use-pull-request", use_pull_requests)?;
-        for key in ["gitflow.allow-master-commit", "gitflow.allow-conflict-commit"] {
+        for key in [
+            "gitflow.allow-master-commit",
+            "gitflow.allow-conflict-commit",
+        ] {
             if self.git_get(repo, &["config", "--get", key])?.is_empty() {
                 self.git_config(repo, key, "false")?;
             }
@@ -140,14 +190,22 @@ impl Injector {
             if self.noop {
                 println!("Would create folder {}", hooks_path.display());
             } else {
-                fs::create_dir_all(&hooks_path)
-                    .map_err(|err| format!("Error while creating hooks folder {}: {err}", hooks_path.display()))?;
+                fs::create_dir_all(&hooks_path).map_err(|err| {
+                    format!(
+                        "Error while creating hooks folder {}: {err}",
+                        hooks_path.display()
+                    )
+                })?;
             }
         }
         verbose!("Copying hooks");
         for folder in ["common", language.name()] {
-            self.copy_hooks(folder, &hooks_path)
-                .map_err(|err| format!("Error while copying {folder} hooks to {}: {err}", hooks_path.display()))?;
+            self.copy_hooks(folder, &hooks_path).map_err(|err| {
+                format!(
+                    "Error while copying {folder} hooks to {}: {err}",
+                    hooks_path.display()
+                )
+            })?;
         }
         Ok(())
     }
@@ -164,10 +222,49 @@ impl Injector {
         }
     }
 
+    /// Warns when the branches given on the command line differ from the ones of an initialized repository
+    /// The branches are not changed, as existing feature/release/hotfix branches depend on them
+    fn check_branches(&self, repo: &Path, flavor: Flavor) -> Result<(), String> {
+        if self.main_branch.is_none() && self.develop_branch.is_none() {
+            return Ok(());
+        }
+        let is_next = flavor == Flavor::Next
+            && self.git_get(
+                repo,
+                &["config", "--local", "--bool", "gitflow.initialized"],
+            )? == "true";
+        let (master, develop) = if is_next {
+            (
+                self.git_get(repo, &["config", "--get", "gitflow.branch.release.parent"])?,
+                self.git_get(repo, &["config", "--get", "gitflow.branch.feature.parent"])?,
+            )
+        } else {
+            (
+                self.git_get(repo, &["config", "--get", "gitflow.branch.master"])?,
+                self.git_get(repo, &["config", "--get", "gitflow.branch.develop"])?,
+            )
+        };
+        let differs = |wanted: &Option<String>, current: &str| {
+            wanted.as_deref().is_some_and(|wanted| wanted != current)
+        };
+        if differs(&self.main_branch, &master) || differs(&self.develop_branch, &develop) {
+            warning!(
+                "git flow is already initialized in {} with main branch \"{master}\" and develop branch \"{develop}\", ignoring --main/--develop. To change them, run: git flow init -f",
+                repo.display()
+            );
+        }
+        Ok(())
+    }
+
     /// Tells if git flow is initialized, git flow AVH sets gitflow.branch.master, git-flow-next sets gitflow.initialized
     fn is_git_flow_initialized(&self, repo: &Path) -> Result<bool, String> {
-        Ok(!self.git_get(repo, &["config", "--local", "gitflow.branch.master"])?.is_empty()
-            || self.git_get(repo, &["config", "--local", "--bool", "gitflow.initialized"])? == "true")
+        Ok(!self
+            .git_get(repo, &["config", "--local", "gitflow.branch.master"])?
+            .is_empty()
+            || self.git_get(
+                repo,
+                &["config", "--local", "--bool", "gitflow.initialized"],
+            )? == "true")
     }
 
     /// Copies the hooks of the given folder (common or a language) into the hooks path
@@ -183,14 +280,20 @@ impl Injector {
                 for entry in entries.iter().filter(|entry| entry.path().is_file()) {
                     let destination = hooks_path.join(entry.file_name());
                     if self.noop {
-                        println!("Would copy {} to {}", entry.path().display(), destination.display());
+                        println!(
+                            "Would copy {} to {}",
+                            entry.path().display(),
+                            destination.display()
+                        );
                         continue;
                     }
                     fs::copy(entry.path(), &destination).map_err(|err| err.to_string())?;
                 }
             }
             None => {
-                let dir = HOOKS.get_dir(folder).ok_or_else(|| format!("No embedded hooks for {folder}"))?;
+                let dir = HOOKS
+                    .get_dir(folder)
+                    .ok_or_else(|| format!("No embedded hooks for {folder}"))?;
                 let mut files: Vec<_> = dir.files().collect();
                 files.sort_by_key(|file| file.path());
                 for file in files {
@@ -222,7 +325,12 @@ impl Injector {
     /// Runs git, or only displays the command in noop mode
     fn git_run(&self, repo: &Path, args: &[&str]) -> Result<(), String> {
         if self.noop {
-            println!("Would run: {} -C {} {}", self.git, repo.display(), args.join(" "));
+            println!(
+                "Would run: {} -C {} {}",
+                self.git,
+                repo.display(),
+                args.join(" ")
+            );
             return Ok(());
         }
         let status = Command::new(&self.git)
@@ -233,7 +341,11 @@ impl Injector {
             .map_err(|err| format!("Failed to run {}: {err}", self.git))?;
         match status.success() {
             true => Ok(()),
-            false => Err(format!("{} {} failed with {status}", self.git, args.join(" "))),
+            false => Err(format!(
+                "{} {} failed with {status}",
+                self.git,
+                args.join(" ")
+            )),
         }
     }
 

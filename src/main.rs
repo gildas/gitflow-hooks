@@ -27,6 +27,14 @@ struct Cli {
     #[arg(long = "no-pull-request", visible_alias = "no-pr")]
     no_pull_request: bool,
 
+    /// Main (production) branch to use when initializing git flow [default: gitflow.branch.master from the git config, else git flow's default]
+    #[arg(long = "main", visible_alias = "master", value_name = "BRANCH", value_parser = parse_branch)]
+    main_branch: Option<String>,
+
+    /// Develop branch to use when initializing git flow [default: gitflow.branch.develop from the git config, else git flow's default]
+    #[arg(long = "develop", visible_alias = "dev", value_name = "BRANCH", value_parser = parse_branch)]
+    develop_branch: Option<String>,
+
     /// Exclude the folders matching this regular expression when used with --recursive. Can be repeated
     #[arg(long, value_name = "PATTERN", value_parser = Regex::new)]
     exclude: Vec<Regex>,
@@ -58,6 +66,21 @@ struct Cli {
     /// Force operations (does nothing, kept for compatibility)
     #[arg(long, hide = true)]
     force: bool,
+}
+
+/// Validates a branch name with git check-ref-format
+fn parse_branch(name: &str) -> Result<String, String> {
+    let git = std::env::var("GIT").unwrap_or_else(|_| "git".into());
+    let valid = std::process::Command::new(&git)
+        .args(["check-ref-format", "--branch", name])
+        .output()
+        .map_err(|err| format!("Failed to run {git}: {err}"))?
+        .status
+        .success();
+    match valid {
+        true => Ok(name.to_string()),
+        false => Err(format!("\"{name}\" is not a valid branch name")),
+    }
 }
 
 /// Tells if the path matches any of the exclude patterns
@@ -114,7 +137,9 @@ fn main() -> ExitCode {
 
     output::set_verbosity(if cli.quiet { 0 } else { cli.verbose });
     if cli.no_pull_request {
-        warning!("The hooks will NOT use pull requests before finishing releases/hotfixes/features");
+        warning!(
+            "The hooks will NOT use pull requests before finishing releases/hotfixes/features"
+        );
     }
     if cli.force {
         warning!("This program will force operations to be executed");
@@ -125,10 +150,14 @@ fn main() -> ExitCode {
 
     let injector = Injector {
         git: std::env::var("GIT").unwrap_or_else(|_| "git".into()),
-        hooks_dir: std::env::var("DEFAULT_HOOKS_DIR").unwrap_or_else(|_| ".git/hooks".into()).into(),
+        hooks_dir: std::env::var("DEFAULT_HOOKS_DIR")
+            .unwrap_or_else(|_| ".git/hooks".into())
+            .into(),
         sources: cli.sources,
         hooks_source: cli.hooks_dir,
         use_pull_requests: !cli.no_pull_request,
+        main_branch: cli.main_branch,
+        develop_branch: cli.develop_branch,
         noop: cli.noop,
     };
 
