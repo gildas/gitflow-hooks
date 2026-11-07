@@ -225,7 +225,7 @@ impl Injector {
                 })?;
             }
         }
-        self.preserve_custom_pre_commit(&hooks_path)?;
+        self.preserve_custom_pre_commit(repo, &hooks_path)?;
         verbose!("Copying hooks");
         for folder in ["common", language.name()] {
             self.copy_hooks(folder, &hooks_path).map_err(|err| {
@@ -275,6 +275,17 @@ impl Injector {
             custom_hooks = hooks_path_config.clone();
         }
         if custom_hooks.is_empty() {
+            // core.hooksPath still points to our hooks in the previous location of the repository (moved or copied)
+            if !hooks_path_config.is_empty()
+                && !previous_hooks_path.is_empty()
+                && !same_folder(&repo.join(&hooks_path_config), hooks_path)
+                && same_folder(
+                    &repo.join(&hooks_path_config),
+                    &repo.join(previous_hooks_path),
+                )
+            {
+                self.git_config(repo, "core.hooksPath", &hooks_path.to_string_lossy())?;
+            }
             return Ok(());
         }
         verbose!("Forwarding the git hooks to {custom_hooks}");
@@ -544,9 +555,11 @@ impl Injector {
         Ok(true)
     }
 
-    /// Moves the user's own pre-commit hook to pre-commit.local, so ours does not overwrite it
+    /// Copies the user's own pre-commit hook to pre-commit.local, before ours overwrites it
     /// Our pre-commit runs pre-commit.local after its own checks
-    fn preserve_custom_pre_commit(&self, hooks_path: &Path) -> Result<(), String> {
+    /// It is copied, not moved, so the user's hook stays in place if installing ours fails
+    /// gitflow.path.pre-commit is updated when it points to the replaced hook, as it would point to ours afterwards
+    fn preserve_custom_pre_commit(&self, repo: &Path, hooks_path: &Path) -> Result<(), String> {
         let pre_commit = hooks_path.join("pre-commit");
         let Ok(contents) = fs::read(&pre_commit) else {
             return Ok(());
@@ -555,28 +568,40 @@ impl Injector {
             return Ok(());
         }
         let local = hooks_path.join("pre-commit.local");
-        if local.exists() {
-            return Err(format!(
-                "{} is not a git flow hook and {} already exists, move one of them away first",
-                pre_commit.display(),
-                local.display()
-            ));
+        match fs::read(&local) {
+            // Copied by a previous run that could not install our hooks
+            Ok(local_contents) if local_contents == contents => {}
+            Ok(_) => {
+                return Err(format!(
+                    "{} is not a git flow hook and {} already exists, move one of them away first",
+                    pre_commit.display(),
+                    local.display()
+                ));
+            }
+            Err(_) if self.noop => {
+                println!("Would copy {} to {}", pre_commit.display(), local.display());
+            }
+            Err(_) => {
+                fs::copy(&pre_commit, &local).map_err(|err| {
+                    format!(
+                        "Error while copying {} to {}: {err}",
+                        pre_commit.display(),
+                        local.display()
+                    )
+                })?;
+                warning!(
+                    "Copied your pre-commit hook to {}, it will run after the git flow pre-commit hook",
+                    local.display()
+                );
+            }
         }
-        if self.noop {
-            println!("Would move {} to {}", pre_commit.display(), local.display());
-            return Ok(());
+        let configured = self.git_get(
+            repo,
+            &["config", "--type=path", "--get", "gitflow.path.pre-commit"],
+        )?;
+        if !configured.is_empty() && same_folder(&repo.join(&configured), &pre_commit) {
+            self.git_config(repo, "gitflow.path.pre-commit", &local.to_string_lossy())?;
         }
-        fs::rename(&pre_commit, &local).map_err(|err| {
-            format!(
-                "Error while moving {} to {}: {err}",
-                pre_commit.display(),
-                local.display()
-            )
-        })?;
-        warning!(
-            "Moved your pre-commit hook to {}, it will run after the git flow pre-commit hook",
-            local.display()
-        );
         Ok(())
     }
 
@@ -782,11 +807,12 @@ mod tests {
     }
 
     #[test]
-    fn moves_custom_pre_commit() {
+    fn copies_custom_pre_commit() {
         let dir = temp_hooks("custom");
         fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
-        injector().preserve_custom_pre_commit(&dir).unwrap();
-        assert!(!dir.join("pre-commit").exists());
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
+        // Still in place, in case installing our hooks fails
+        assert!(dir.join("pre-commit").exists());
         assert_eq!(
             fs::read_to_string(dir.join("pre-commit.local")).unwrap(),
             "#!/bin/sh\nmake lint\n"
@@ -799,9 +825,18 @@ mod tests {
         let dir = temp_hooks("ours");
         let ours = HOOKS.get_file("common/pre-commit").unwrap().contents();
         fs::write(dir.join("pre-commit"), ours).unwrap();
-        injector().preserve_custom_pre_commit(&dir).unwrap();
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
         assert!(dir.join("pre-commit").exists());
         assert!(!dir.join("pre-commit.local").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn accepts_a_previous_copy() {
+        let dir = temp_hooks("retry");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        fs::write(dir.join("pre-commit.local"), "#!/bin/sh\nmake lint\n").unwrap();
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
         fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -810,7 +845,7 @@ mod tests {
         let dir = temp_hooks("both");
         fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
         fs::write(dir.join("pre-commit.local"), "#!/bin/sh\nmake test\n").unwrap();
-        assert!(injector().preserve_custom_pre_commit(&dir).is_err());
+        assert!(injector().preserve_custom_pre_commit(&dir, &dir).is_err());
         assert!(dir.join("pre-commit").exists());
         fs::remove_dir_all(&dir).unwrap();
     }

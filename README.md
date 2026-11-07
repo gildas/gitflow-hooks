@@ -206,9 +206,9 @@ The hooks run the first custom pre-commit hook they find:
    ```
 
 2. the `pre-commit` of the repository's own hooks folder (e.g., `.githooks/pre-commit`), see [Repositories with their own hooks folder](#repositories-with-their-own-hooks-folder);
-3. `pre-commit.local` in the hooks folder (e.g., `.git/hooks/pre-commit.local`). If the repository already has a pre-commit hook that is not ours, `hook-it` moves it to `pre-commit.local` instead of overwriting it (and stops if `pre-commit.local` already exists).
+3. `pre-commit.local` in the hooks folder (e.g., `.git/hooks/pre-commit.local`). If the repository already has a pre-commit hook that is not ours, `hook-it` copies it to `pre-commit.local` before replacing it (and stops if a different `pre-commit.local` already exists). If `gitflow.path.pre-commit` pointed to that hook, it now points to `pre-commit.local`.
 
-The scripts of 1. and 3. must be executable, otherwise the commit fails. When `gitflow.path.pre-commit` is set, the commit also fails if the script does not exist. Like git, the hooks ignore the hooks of 2. that are not executable, with a warning.
+The scripts of 1. and 3. must be executable, otherwise the commit fails. A custom hook cannot be a git flow pre-commit hook (it would run itself forever), the commit fails as well. When `gitflow.path.pre-commit` is set, the commit also fails if the script does not exist. Like git, the hooks ignore the hooks of 2. that are not executable, with a warning.
 
 While a merge is in progress, the git flow checks are skipped, but the custom hook still runs.
 

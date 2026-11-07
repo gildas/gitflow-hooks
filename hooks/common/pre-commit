@@ -39,6 +39,10 @@ function run_custom_pre_commit() { # {{{2
     [[ -e $custom_hook ]] || exit 0
   fi
   [[ -x $custom_hook ]] || die "The custom pre-commit hook $custom_hook is not executable, run: chmod +x $custom_hook"
+  # The custom hook cannot be a git flow pre-commit hook (this one, through a symlink, or a copy), running it would loop forever
+  if [[ $custom_hook -ef $0 ]] || grep -Fq 'source "$HOOKS_DIR"/functions.sh' "$custom_hook" 2>/dev/null; then
+    die "The custom pre-commit hook $custom_hook is a git flow pre-commit hook, running it would loop. Point gitflow.path.pre-commit to your own hook (e.g.: $HOOKS_DIR/pre-commit.local, where hook-it moves the pre-commit hook it replaces), or remove it"
+  fi
   verbose "Running the custom pre-commit hook $custom_hook"
   exec "$custom_hook" "$@"
 } # 2}}}
