@@ -590,27 +590,54 @@ impl Injector {
     /// gitflow.path.pre-commit is updated when it points to the replaced hook, as it would point to ours afterwards
     fn preserve_custom_pre_commit(&self, repo: &Path, hooks_path: &Path) -> Result<(), String> {
         let pre_commit = hooks_path.join("pre-commit");
-        let Ok(contents) = fs::read(&pre_commit) else {
-            return Ok(());
-        };
-        if is_our_pre_commit(&contents) {
-            return Ok(());
+        // Look at the entry itself, without following it: a dangling symlink still is the user's hook
+        match fs::symlink_metadata(&pre_commit) {
+            Err(err) if err.kind() == std::io::ErrorKind::NotFound => return Ok(()),
+            Err(err) => return Err(format!("Cannot check {}: {err}", pre_commit.display())),
+            Ok(_) => {}
         }
+        let link = fs::read_link(&pre_commit).ok();
+        let contents = match fs::read(&pre_commit) {
+            Ok(contents) if is_our_pre_commit(&contents) => return Ok(()),
+            Ok(contents) => Some(contents),
+            // A dangling symlink is saved as is
+            Err(_) if link.is_some() => None,
+            // It would be replaced without a backup
+            Err(err) => {
+                return Err(format!(
+                    "Cannot read {} to save it before installing the git flow pre-commit hook: {err}",
+                    pre_commit.display()
+                ));
+            }
+        };
         let local = hooks_path.join("pre-commit.local");
-        match fs::read(&local) {
-            // Copied by a previous run that could not install our hooks
-            Ok(local_contents) if local_contents == contents => {}
-            Ok(_) => {
+        // Never write onto an existing pre-commit.local, not even a dangling symlink (it would be written through)
+        let local_exists = fs::symlink_metadata(&local).is_ok();
+        // Saved by a previous run that could not install our hooks: the same symlink, or a copy of the same contents
+        let already_saved = local_exists
+            && match &link {
+                Some(target) => {
+                    fs::read_link(&local).is_ok_and(|local_target| &local_target == target)
+                }
+                None => {
+                    !local.is_symlink()
+                        && fs::read(&local)
+                            .is_ok_and(|local_contents| Some(local_contents) == contents)
+                }
+            };
+        match (local_exists, already_saved) {
+            (_, true) => {}
+            (true, false) => {
                 return Err(format!(
                     "{} is not a git flow hook and {} already exists, move one of them away first",
                     pre_commit.display(),
                     local.display()
                 ));
             }
-            Err(_) if self.noop => {
+            (false, _) if self.noop => {
                 println!("Would copy {} to {}", pre_commit.display(), local.display());
             }
-            Err(_) => {
+            (false, _) => {
                 preserve_file(&pre_commit, &local).map_err(|err| {
                     format!(
                         "Error while copying {} to {}: {err}",
@@ -954,6 +981,47 @@ mod tests {
             PathBuf::from("shared/pre-commit")
         );
         assert!(!dir.join(".pre-commit.hook-it.tmp").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn saves_a_dangling_pre_commit_symlink() {
+        let dir = temp_hooks("dangling");
+        std::os::unix::fs::symlink("missing/pre-commit", dir.join("pre-commit")).unwrap();
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
+        assert_eq!(
+            fs::read_link(dir.join("pre-commit.local")).unwrap(),
+            PathBuf::from("missing/pre-commit")
+        );
+        // A second run (e.g.: after a failed installation) accepts it
+        injector().preserve_custom_pre_commit(&dir, &dir).unwrap();
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn never_writes_through_a_dangling_local() {
+        let dir = temp_hooks("dangling-local");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        std::os::unix::fs::symlink("target", dir.join("pre-commit.local")).unwrap();
+        assert!(injector().preserve_custom_pre_commit(&dir, &dir).is_err());
+        assert!(!dir.join("target").exists());
+        fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn refuses_to_replace_an_unreadable_pre_commit() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = temp_hooks("unreadable");
+        fs::write(dir.join("pre-commit"), "#!/bin/sh\nmake lint\n").unwrap();
+        fs::set_permissions(dir.join("pre-commit"), fs::Permissions::from_mode(0o000)).unwrap();
+        // root reads anything, nothing to check then
+        if fs::read(dir.join("pre-commit")).is_err() {
+            assert!(injector().preserve_custom_pre_commit(&dir, &dir).is_err());
+            assert!(!dir.join("pre-commit.local").exists());
+        }
         fs::remove_dir_all(&dir).unwrap();
     }
 
