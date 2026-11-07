@@ -2,8 +2,12 @@
 
 if [[ -z $HOOKS_DIR ]]; then
   HOOKS_DIR="$0"
-  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
-  HOOKS_DIR=$(dirname $HOOKS_DIR)
+  # Follow the symlinks to the real hook, a relative target is relative to the folder of the link
+  while [[ -h $HOOKS_DIR ]]; do
+    HOOK_PATH=$(readlink "$HOOKS_DIR")
+    [[ $HOOK_PATH == /* ]] && HOOKS_DIR=$HOOK_PATH || HOOKS_DIR="$(dirname "$HOOKS_DIR")/$HOOK_PATH"
+  done
+  HOOKS_DIR=$(dirname "$HOOKS_DIR")
 fi
 source "$HOOKS_DIR"/functions.sh
 [[ -f "$HOOKS_DIR"/functions-lang.sh ]] && source "$HOOKS_DIR"/functions-lang.sh
