@@ -1,17 +1,5 @@
 #!/usr/bin/env bash
 
-# list_repository_files prints the repository files matching the given pathspecs, shallowest first.
-# Only files tracked by git (or new, not ignored, files) are listed,
-# and files in hidden folders (.local/, .github/, ...), vendor/, or node_modules/ are skipped.
-function list_repository_files() { # {{{2
-  git -C "$ROOT_DIR" ls-files --cached --others --exclude-standard -- "$@" \
-    | grep -vE '(^|/)(\.[^/]+|vendor|node_modules)/' \
-    | awk -F/ '{ print NF "\t" $0 }' \
-    | sort -s -n -k1,1 \
-    | cut -f2- \
-    | uniq
-} # 2}}}
-
 function find_version_file() { # {{{2
   local file=$(get_config gitflow.path.versionfile "")
   local candidate
@@ -38,32 +26,6 @@ function get_version() { # {{{2
   local version=$(grep -E "^var[ ]+VERSION[ ]*=" "$file" | sed -E "s/^var[ ]+VERSION[ ]*=[ ]*\"([0-9]+\.[0-9]+\.[0-9]+)\"/\1/")
   local status=$? ; (( status )) && { (exit $status); return $(error "Failed to get the version from $file"); }
   printf "%s" $version
-  return 0
-} # 2}}}
-
-function update_and_stage_package_json() { # {{{2
-  local version=$1
-  local file=$(get_config gitflow.path.packagejson "")
-  local status
-
-  # Use the shallowest package.json (e.g.: package.json, src/frontend/package.json)
-  [[ -z $file ]] && file=$(list_repository_files package.json '*/package.json' | head -n 1)
-  [[ -n $file && $file != /* ]] && file="$ROOT_DIR/$file"
-
-  if [[ ! -f $file ]]; then
-    trace "No package.json found, skipping"
-    return 0
-  fi
-
-  verbose "Updating: ${file##*/} to ${version}"
-  sed -Ei.bak \
-    -e "/^[ \t]*\"version\":[ \t]*\"/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" \
-    "$file"
-  status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/} "); }
-  git add "$file"
-  status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/} "); }
-  success "Updated ${file##*/}"
-  rm -f "$file.bak"
   return 0
 } # 2}}}
 

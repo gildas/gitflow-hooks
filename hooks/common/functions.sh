@@ -422,6 +422,47 @@ function get_pull_request_state() { # {{{2
   return 0
 } # 2}}}
 
+# list_repository_files prints the repository files matching the given pathspecs, shallowest first.
+# Only files tracked by git (or new, not ignored, files) are listed,
+# and files in hidden folders (.local/, .github/, ...), vendor/, or node_modules/ are skipped.
+function list_repository_files() { # {{{2
+  git -C "$ROOT_DIR" ls-files --cached --others --exclude-standard -- "$@" \
+    | grep -vE '(^|/)(\.[^/]+|vendor|node_modules)/' \
+    | awk -F/ '{ print NF "\t" $0 }' \
+    | sort -s -n -k1,1 \
+    | cut -f2- \
+    | uniq
+} # 2}}}
+
+# update_and_stage_package_json bumps the package.json of an embedded web client, if any
+# (e.g.: a Go or Rust backend with its frontend in src/frontend/)
+# Languages with a different package.json logic (e.g.: Salesforce) override it
+function update_and_stage_package_json() { # {{{2
+  local version=$1
+  local file=$(get_config gitflow.path.packagejson "")
+  local status
+
+  # Use the shallowest package.json (e.g.: package.json, src/frontend/package.json)
+  [[ -z $file ]] && file=$(list_repository_files package.json '*/package.json' | head -n 1)
+  [[ -n $file && $file != /* ]] && file="$ROOT_DIR/$file"
+
+  if [[ ! -f $file ]]; then
+    trace "No package.json found, skipping"
+    return 0
+  fi
+
+  verbose "Updating: ${file##*/} to ${version}"
+  sed -Ei.bak \
+    -e "/^[ \t]*\"version\":[ \t]*\"/s/[0-9]+\.[0-9]+\.[0-9]+/${version}/" \
+    "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to update ${file##*/} "); }
+  git add "$file"
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to stage ${file##*/} "); }
+  success "Updated ${file##*/}"
+  rm -f "$file.bak"
+  return 0
+} # 2}}}
+
 # git flow AVH exports MASTER_BRANCH and DEVELOP_BRANCH to the hooks, git-flow-next does not
 [[ -z $MASTER_BRANCH ]]  && MASTER_BRANCH=$(get_master_branch)
 [[ -z $DEVELOP_BRANCH ]] && DEVELOP_BRANCH=$(get_develop_branch)
