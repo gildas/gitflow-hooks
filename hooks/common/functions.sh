@@ -49,18 +49,30 @@ function bump_version() { # {{{2
   local what=$2
   local components=( $(echo $version | tr "."  " ") )
 
+  (( ${#components[@]} != 3 )) && return $(error "Invalid version: $version")
   case $what in
     major)
+      if ! get_config_bool gitflow.version-major-supported true ; then
+        error "This repository does not support major bumps"
+        return 1
+      fi
       printf "%s.0.0" $((components[0] + 1))
       ;;
     minor)
+      if ! get_config_bool gitflow.version-minor-supported true ; then
+        error "This repository does not support minor bumps"
+        return 1
+      fi
       printf "%s.%s.0" ${components[0]} $((components[1] + 1))
       ;;
     patch)
+      if ! get_config_bool gitflow.version-patch-supported true ; then
+        error "This repository does not support patch bumps"
+        return 1
+      fi
       printf "%s.%s.%s" ${components[0]} ${components[1]} $((components[2] + 1))
       ;;
     *)
-      ERROR="Unsupported bump type: $what"
       error "Unsupported bump type: $what"
       return 1
   esac
@@ -161,7 +173,7 @@ function get_chart_version() { # {{{2
   local status
   local file=$1
   local version=$(grep "^version:" "$file" | sed -E "s/^version:[ ]+([0-9]+\.[0-9]+\.[0-9]+)/\1/")
-  status=$? ; (( status )) && ERROR="Failed to get the version from $file" && return $status
+  status=$? ; (( status )) && { (exit $status); return $(error "Failed to get the version from $file "); }
   printf "%s" $version
   return 0
 } # 2}}}
