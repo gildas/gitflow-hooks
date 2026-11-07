@@ -26,6 +26,9 @@ if [[ -z $HOOKS_DIR ]]; then
 fi
 source "$HOOKS_DIR"/functions.sh
 
+trace "Hook: pre-flow-hotfix-finish"
+verbose "Finishing hotfix $VERSION from ${ORIGIN:+$ORIGIN/}$BRANCH"
+
 if ! get_config_bool gitflow.use-pull-request true; then
   verbose "Pull requests are disabled. Hotfix can be finished."
   exit 0

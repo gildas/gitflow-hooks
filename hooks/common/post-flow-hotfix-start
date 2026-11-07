@@ -28,7 +28,8 @@ fi
 source "$HOOKS_DIR"/functions.sh
 source "$HOOKS_DIR"/functions-lang.sh
 
-verbose "Hook: post-flow-hotfix-start"
+trace "Hook: post-flow-hotfix-start"
+verbose "We are now in branch ${ORIGIN:+$ORIGIN/}$BRANCH based on $BASE and the new version is $VERSION"
 
 if get_config_bool gitflow.bump-chart true; then
   CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
@@ -59,11 +60,12 @@ if get_config_bool gitflow.bump-appveyor true; then
 fi
 
 VERSION_FILE=$(find_version_file)
-die_on_error
+die_on_error "Failed to find a version file in the repository. Please create one or set the gitflow.path.versionfile configuration variable."
+verbose "Reading version from $VERSION_FILE"
 
 VERSION=$(normalize_version "$VERSION")
 
-update_version_file "$VERSION_FILE" $VERSION
+update_and_stage_version_file "$VERSION_FILE" $VERSION
 die_on_error "Failed to update $VERSION_FILE with version $VERSION"
 
 if get_config_bool gitflow.bump-dockerfile true; then
@@ -76,8 +78,6 @@ if get_config_bool gitflow.bump-dockerfile true; then
   fi
 fi
 
-git add "$VERSION_FILE"
-die_on_error "Failed to stage $VERSION_FILE"
 git commit -m "Bumped to version $VERSION"
 die_on_error "Failed to commit new version $VERSION"
 

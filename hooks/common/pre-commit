@@ -8,7 +8,7 @@ fi
 source "$HOOKS_DIR"/functions.sh
 [[ -f "$HOOKS_DIR"/functions-lang.sh ]] && source "$HOOKS_DIR"/functions-lang.sh
 
-verbose "Hook: pre-commit"
+trace "Hook: pre-commit"
 
 if ! get_config_bool gitflow.allow-master-commit; then
   verbose "Checking if the current branch is the $MASTER_BRANCH branch"
@@ -31,16 +31,18 @@ if ! get_config_bool gitflow.allow-conflict-commit; then
 fi
 
 if get_config_bool gitflow.prettify true; then
+  verbose "Prettifying staged files..."
   if declare -F prettify_staged_files &>/dev/null; then
     prettify_staged_files
-    die_on_error "$ERROR \nFix the formatting errors and try again"
+    die_on_error "Fix the formatting errors and try again"
   fi
 fi
 
 if get_config_bool gitflow.must-pass-lint true; then
+  verbose "Linting staged files..."
   if declare -F lint_staged_files &>/dev/null; then
     lint_staged_files
-    die_on_error "$ERROR \nFix the lint errors and try again"
+    die_on_error "Fix the lint errors and try again"
   fi
 fi
 
