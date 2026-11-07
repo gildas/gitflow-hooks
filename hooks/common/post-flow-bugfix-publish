@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+#
+# Runs at the end of git flow bugfix finish
+#
+# Positional arguments:
+# $1    The friendly name of the branch
+# $2    The origin remote
+# $3    The full branch name (including the bugfix prefix)
+#
+# The following variables are available as they are exported by git-flow:
+#
+# MASTER_BRANCH - The branch defined as Master
+# DEVELOP_BRANCH - The branch defined as Develop
+#
+# @see https://github.com/petervanderdoes/gitflow-avh/blob/develop/hooks/post-flow-bugfix-publish
+VERSION=$1
+ORIGIN=$2
+BRANCH=$3
+
+# Find the folder location through potential symlinks
+if [[ -z $HOOKS_DIR ]]; then
+  HOOKS_DIR="$0"
+  while [[ -h $HOOKS_DIR ]]; do HOOK_PATH=$(readlink "$HOOKS_DIR"); done
+  HOOKS_DIR=$(dirname $HOOKS_DIR)
+fi
+source "$HOOKS_DIR"/functions.sh
+
+trace "Hook: post-flow-bugfix-publish"
+verbose "Publishing bugfix $VERSION to ${ORIGIN:+${ORIGIN}/}$BRANCH"
+
+if ! get_config_bool gitflow.use-pull-request true; then
+  verbose "Pull requests are disabled. Skipping Pull Request creation."
+  exit 0
+fi
+
+BODY="Bugfix $VERSION."
+COMMITS=$(git log --no-merges --reverse --format='- %h: %s (%an)' "$DEVELOP_BRANCH..$BRANCH" 2>/dev/null)
+if [[ -n $COMMITS ]]; then
+  BODY+=$'\n\n'"Commits:"$'\n\n'"$COMMITS"$'\n'
+fi
+BODY+=$'\n'"Do not delete the bugfix branch after the merge."
+
+create_pull_request \
+  $ORIGIN \
+  $BRANCH \
+  $DEVELOP_BRANCH \
+  "Merge $BRANCH into $DEVELOP_BRANCH" \
+  "$BODY"
+die_on_error "Failed to create a Pull Request"
+
+exit 0
