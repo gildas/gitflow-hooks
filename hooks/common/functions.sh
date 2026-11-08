@@ -157,6 +157,66 @@ function get_develop_branch() { # {{{2
   fi
 } # 2}}}
 
+# get_branch_worktree prints the worktree where the given branch is checked out (empty when it is not)
+function get_branch_worktree() { # {{{2
+  local branch=$1
+  git worktree list --porcelain | awk -v ref="refs/heads/$branch" '
+    /^worktree / { worktree = substr($0, 10) }
+    $1 == "branch" && $2 == ref { print worktree; exit }
+  '
+} # 2}}}
+
+# pull_branch fast-forwards the given local branch to its remote, so git flow merges into an up-to-date branch
+#
+# Works whether the branch is checked out (in this worktree or another one) or not.
+# A local branch that is ahead of its remote is left alone, a diverged one is an error.
+# Nothing happens when there is no remote, or when the remote does not have the branch.
+function pull_branch() { # {{{2
+  local origin=$1
+  local branch=$2
+  local status local_sha remote_sha worktree
+
+  [[ -z $branch ]] && return 0
+  [[ -z $origin ]] && verbose "No remote, not pulling $branch" && return 0
+
+  git ls-remote --exit-code --heads "$origin" "$branch" &>/dev/null
+  status=$?
+  (( status == 2 )) && verbose "Branch $branch does not exist on $origin, not pulling it" && return 0
+  (( status ))      && error "Failed to reach $origin" && return $status
+
+  verbose "Pulling $branch from $origin"
+  git fetch --quiet "$origin" "+refs/heads/$branch:refs/remotes/$origin/$branch"
+  status=$? ; (( status )) && error "Failed to fetch $branch from $origin" && return $status
+  remote_sha=$(git rev-parse --verify --quiet "refs/remotes/$origin/$branch")
+  local_sha=$(git rev-parse --verify --quiet "refs/heads/$branch")
+
+  if [[ -z $local_sha ]]; then
+    git branch --quiet --track "$branch" "$origin/$branch"
+    status=$? ; (( status )) && error "Failed to create $branch from $origin/$branch" && return $status
+    verbose "Created $branch from $origin/$branch"
+    return 0
+  fi
+  if git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+    verbose "Branch $branch is up to date with $origin/$branch"
+    return 0
+  fi
+  if ! git merge-base --is-ancestor "$local_sha" "$remote_sha"; then
+    error "Branch $branch has diverged from $origin/$branch, please reconcile them first"
+    return 1
+  fi
+
+  worktree=$(get_branch_worktree "$branch")
+  if [[ -n $worktree ]]; then
+    # The branch is checked out, its files must follow
+    git -C "$worktree" merge --ff-only --quiet "refs/remotes/$origin/$branch"
+  else
+    git update-ref -m "pull: fast-forward from $origin/$branch" "refs/heads/$branch" "$remote_sha" "$local_sha"
+  fi
+  status=$? ; (( status )) && error "Failed to fast-forward $branch to $origin/$branch" && return $status
+  verbose "Fast-forwarded $branch to $origin/$branch"
+  return 0
+} # 2}}}
+
 # get_version_tag prints the prefix of the version tags (like v)
 #
 # git flow AVH stores it in gitflow.prefix.versiontag,
