@@ -58,17 +58,13 @@ function lint_staged_files() { # {{{2
     golangci-lint run "${packages[@]}"
     status=$? ; (( status )) && { (exit $status); return $(error "The golangci-lint tool found issues"); }
     success "The golangci-lint tool found no issues"
-  else
-    warn "golangci-lint is not installed, skipping"
-  fi
-
-  if command -v staticcheck &>/dev/null; then
+  elif command -v staticcheck &>/dev/null; then
     verbose "Running staticcheck on the following packages: ${packages[*]}"
     staticcheck "${packages[@]}"
     status=$? ; (( status )) && { (exit $status); return $(error "The staticcheck tool found issues"); }
     success "The staticcheck tool found no issues"
   else
-    warn "staticcheck is not installed, skipping"
+    warn "neither golangci-lint nor staticcheck found, skipping"
   fi
   return 0
 } # 2}}}
