@@ -313,9 +313,33 @@ function update_appveyor_version() { # {{{2
   fi
 } # 2}}}
 
+# get_origin_url prints the URL of the given remote, with SSH host aliases (from ~/.ssh/config) resolved
+#
+# e.g.: git@bitbucket-genesys:genesyscsp/repo.git becomes git@ssh.bitbucket.org:genesyscsp/repo.git
+function get_origin_url() { # {{{2
+  local origin=$1
+  local url host path resolved
+
+  url=$(git config remote.${origin}.url)
+  [[ -z $url ]] && return 1
+  if [[ $url =~ ^ssh://([^@/]+@)?([^/:]+)(:[0-9]+)?/(.*)$ ]]; then
+    host=${BASH_REMATCH[2]}
+    path=${BASH_REMATCH[4]}
+  elif [[ ! $url =~ ^[a-zA-Z]+:// && $url =~ ^([^@/]+@)?([^/:]+):(.*)$ ]]; then
+    host=${BASH_REMATCH[2]}
+    path=${BASH_REMATCH[3]}
+  else
+    printf "%s" "$url"
+    return 0
+  fi
+  command -v ssh &>/dev/null && resolved=$(ssh -G "$host" 2>/dev/null | awk '$1 == "hostname" { print $2; exit }')
+  printf "git@%s:%s" "${resolved:-$host}" "$path"
+  return 0
+} # 2}}}
+
 function get_repo_type() { # {{{2
   local origin=$1
-  local origin_url=$(git config remote.${origin}.url)
+  local origin_url=$(get_origin_url $origin)
   local repo_type
 
   if [[ $origin_url =~ ^(ssh://)?git@github\.com ]]; then
@@ -339,7 +363,7 @@ function get_repo_type() { # {{{2
 
 function get_repo() { # {{{2
   local origin=$1
-  local origin_url=$(git config remote.${origin}.url)
+  local origin_url=$(get_origin_url $origin)
   local status=$? ; (( status )) && return $status
   local repo
 
@@ -372,11 +396,11 @@ function create_pull_request() { #{{{2
   local destination=$3
   local title=$4
   local body=$5
-  local status
-  local repo_type=$(get_repo_type $origin)
-  status=$? ; (( status )) && return $status
+  local status repo_type repo
+  repo_type=$(get_repo_type $origin)
+  status=$? ; (( status )) && error "Unsupported remote URL for $origin: $(git config remote.${origin}.url)" && return $status
   verbose "Creating a Pull Request on a $repo_type repository"
-  local repo=$(get_repo $origin)
+  repo=$(get_repo $origin)
   status=$? ; (( status )) && error "Failed to retrieve the repository name" && return $status
   [[ -z $repo ]] && error "Failed to retrieve repository name (empty)" && return 1
 
