@@ -201,6 +201,8 @@ You can turn off the Appveyor feature with:
 git config --bool gitflow.bump-appveyor false
 ```
 
+The Helm Chart (`Chart.yaml`) and `appveyor.yml` must not have local changes when you start a release or a hotfix, the hooks stop otherwise: commit or stash them first.
+
 ### Custom hooks
 
 You can run your own hooks as well, for every hook of git flow hooks: `pre-commit`, `pre-flow-*-finish`, `post-flow-*-start`, `post-flow-*-publish`, and `filter-flow-*`. A custom hook runs **after** the git flow hook of the same name, and only if its checks pass. It gets the same arguments, and its exit code becomes the hook's, so git and git flow stop when it fails: if a custom `pre-commit` fails, the commit fails; if a custom `pre-flow-release-finish` fails, the release does not finish.

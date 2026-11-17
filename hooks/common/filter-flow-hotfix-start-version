@@ -51,6 +51,15 @@ status=$?
 (( status )) && exit $status
 [[ -z $VERSION ]] && exit 0 # git flow stops, as there is no version
 
+# The bumped files are stashed (see push_stash), they must not carry local changes, which would be lost or committed with the bump
+CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
+if get_config_bool gitflow.bump-appveyor true && [[ -f appveyor.yml ]] && has_local_changes appveyor.yml; then
+  die "appveyor.yml has local changes, commit or stash them before starting the hotfix"
+fi
+if get_config_bool gitflow.bump-chart true && [[ -f $CHART_DIR/Chart.yaml ]] && has_local_changes "$CHART_DIR/Chart.yaml"; then
+  die "$CHART_DIR/Chart.yaml has local changes, commit or stash them before starting the hotfix"
+fi
+
 drop_stashes appveyor chart
 trap '(( $? )) && drop_stashes appveyor chart' EXIT
 
@@ -63,7 +72,6 @@ if get_config_bool gitflow.bump-appveyor true; then
 fi
 
 if get_config_bool gitflow.bump-chart true; then
-  CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
   if [[ -f $CHART_DIR/Chart.yaml ]]; then
     update_chart_appversion "$CHART_DIR/Chart.yaml" $VERSION
     if [[ ! $BUMP =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then

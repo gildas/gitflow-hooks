@@ -160,23 +160,34 @@ function run_custom_hook() { # {{{2
   exec "$custom_hook" "$@"
 } # 2}}}
 
-# find_stash prints the ref (e.g.: stash@{1}) of the gitflow-hooks-<name> stash, if any
+# The stashes are named gitflow-hooks-<name>@<worktree id>: refs/stash is shared by all the worktrees of a repository,
+# a worktree must only see its own stashes. The filter only stashes files without local changes (see has_local_changes),
+# so a stash only carries the version bump of the hook, which can be dropped without losing any work.
+
+# stash_message prints the message of the gitflow-hooks-<name> stash of the current worktree
+#
+# Usage: stash_message <name>
+function stash_message() { # {{{2
+  printf 'gitflow-hooks-%s@%s' "$1" "$(printf '%s' "$ROOT_DIR" | git hash-object --stdin | cut -c1-12)"
+} # 2}}}
+
+# find_stash prints the ref (e.g.: stash@{1}) of the gitflow-hooks-<name> stash of the current worktree, if any
 #
 # Usage: find_stash <name>
 function find_stash() { # {{{2
-  git stash list --format='%gd %s' | awk -v message="gitflow-hooks-$1" '$NF == message { print $1; exit }'
+  git stash list --format='%gd %s' | awk -v message="$(stash_message "$1")" '$NF == message { print $1; exit }'
 } # 2}}}
 
-# push_stash stashes the given files in the gitflow-hooks-<name> stash
+# push_stash stashes the given files in the gitflow-hooks-<name> stash of the current worktree
 #
 # Usage: push_stash <name> <file>...
 function push_stash() { # {{{2
   local name=$1
   shift
-  git stash push --quiet --message "gitflow-hooks-$name" -- "$@"
+  git stash push --quiet --message "$(stash_message "$name")" -- "$@"
 } # 2}}}
 
-# pop_stash pops the gitflow-hooks-<name> stash, fails if there is none or it cannot be popped
+# pop_stash pops the gitflow-hooks-<name> stash of the current worktree, fails if there is none or it cannot be popped
 #
 # Usage: pop_stash <name>
 function pop_stash() { # {{{2
@@ -186,17 +197,24 @@ function pop_stash() { # {{{2
   git stash pop --quiet "$ref"
 } # 2}}}
 
-# drop_stashes drops all the gitflow-hooks-<name> stashes of the given names
+# drop_stashes drops the gitflow-hooks-<name> stashes of the current worktree for the given names
 #
 # Usage: drop_stashes <name>...
 function drop_stashes() { # {{{2
   local name ref
   for name in "$@"; do
     while ref=$(find_stash "$name") && [[ -n $ref ]]; do
-      verbose "Dropping the stash $ref (gitflow-hooks-$name)"
+      verbose "Dropping the stash $ref ($(stash_message "$name"))"
       git stash drop --quiet "$ref" || return
     done
   done
+} # 2}}}
+
+# has_local_changes tells if the given file has staged or unstaged changes
+#
+# Usage: has_local_changes <file>
+function has_local_changes() { # {{{2
+  [[ -n $(git status --porcelain -- "$1") ]]
 } # 2}}}
 
 # is_git_flow_next tells if the git flow in use is git-flow-next (and not git flow AVH)
