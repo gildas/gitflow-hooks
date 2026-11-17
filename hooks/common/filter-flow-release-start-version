@@ -73,6 +73,9 @@ if get_config_bool gitflow.bump-chart true; then
   fi
 fi
 
+# A custom filter gets our version instead of the given one, and returns the final version
+run_custom_hook filter-flow-release-start-version "$VERSION" "${@:2}"
+
 # Return the VERSION
 echo "${VERSION}"
 exit 0

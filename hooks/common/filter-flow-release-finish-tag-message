@@ -47,6 +47,13 @@ VERSION_TAG=$(get_version_tag)
 VERSION_TAG_PLACEHOLDER=$(get_config gitflow.message.versiontag "%tag%")
 MESSAGE=$(echo "$MESSAGE" | sed "s/$VERSION_TAG_PLACEHOLDER/$VERSION/g")
 
+# A custom filter gets our message instead of the given one, with the arguments of the git flow in use, and returns the final message
+if is_git_flow_next; then
+  run_custom_hook filter-flow-release-finish-tag-message "$1" "$MESSAGE" "${@:3}"
+else
+  run_custom_hook filter-flow-release-finish-tag-message "$MESSAGE" "${@:2}"
+fi
+
 # Return the MESSAGE
 echo "${MESSAGE}"
 exit 0

@@ -193,24 +193,27 @@ You can turn off the Appveyor feature with:
 git config --bool gitflow.bump-appveyor false
 ```
 
-### Custom pre-commit hook
+### Custom hooks
 
-You can run your own pre-commit hook as well. It runs **after** the checks of the git flow pre-commit hook, and only if they pass. If it fails, the commit fails.
+You can run your own hooks as well, for every hook of git flow hooks: `pre-commit`, `pre-flow-*-finish`, `post-flow-*-start`, `post-flow-*-publish`, and `filter-flow-*`. A custom hook runs **after** the git flow hook of the same name, and only if its checks pass. It gets the same arguments, and its exit code becomes the hook's, so git and git flow stop when it fails: if a custom `pre-commit` fails, the commit fails; if a custom `pre-flow-release-finish` fails, the release does not finish.
 
-The hooks run the first custom pre-commit hook they find:
+The hooks run the first custom hook they find (here, for `pre-commit`, replace it with the name of the hook):
 
 1. the script given by `gitflow.path.pre-commit`, its path is relative to the root of the repository:
 
    ```bash
    git config gitflow.path.pre-commit scripts/pre-commit
+   git config gitflow.path.post-flow-release-start scripts/announce-release
    ```
 
 2. the `pre-commit` of the repository's own hooks folder (e.g., `.githooks/pre-commit`), see [Repositories with their own hooks folder](#repositories-with-their-own-hooks-folder);
-3. `pre-commit.local` in the hooks folder (e.g., `.git/hooks/pre-commit.local`). If the repository already has a pre-commit hook that is not ours, `hook-it` saves it as `pre-commit.local` before replacing it (a symlink stays a symlink to the same target, e.g., `.githooks/pre-commit`, which is never modified) (and stops if a different `pre-commit.local` already exists). If `gitflow.path.pre-commit` pointed to that hook, it now points to `pre-commit.local`.
+3. `pre-commit.local` in the hooks folder (e.g., `.git/hooks/pre-commit.local`). If the repository already has a hook with the name of one of ours (`pre-commit`, `post-flow-release-start`, ...) that is not ours, `hook-it` saves it as `<hook>.local` before replacing it (a symlink stays a symlink to the same target, e.g., `.githooks/pre-commit`, which is never modified) (and stops if a different `<hook>.local` already exists). If `gitflow.path.<hook>` pointed to that hook, it now points to `<hook>.local`. The git flow hooks of any previous version are ours: upgrading simply replaces them.
 
-The script of 1. must be executable, otherwise the commit fails. A custom hook cannot be a git flow pre-commit hook (it would run itself forever), the commit fails as well. When `gitflow.path.pre-commit` is set, the commit also fails if the script does not exist. Like git, the hooks ignore the hooks of 2. and 3. that are not executable, with a warning (e.g., a disabled pre-commit hook saved by `hook-it`).
+The script of 1. must be executable, otherwise the hook fails. A custom hook cannot be a git flow hook (it would run itself forever), the hook fails as well. When `gitflow.path.<hook>` is set, the hook also fails if the script does not exist. Like git, the hooks ignore the hooks of 2. and 3. that are not executable, with a warning (e.g., a disabled pre-commit hook saved by `hook-it`).
 
-While a merge is in progress, the git flow checks are skipped, but the custom hook still runs.
+While a merge is in progress, the git flow checks of `pre-commit` are skipped, but the custom hook still runs.
+
+The custom `filter-flow-*` hooks get the value computed by the git flow hook instead of the one given by git flow (the bumped version for `filter-flow-*-start-version`, the tag message with the version for `filter-flow-*-finish-tag-message`), the other arguments are unchanged. What they print becomes the final value.
 
 ### Repositories with their own hooks folder
 
@@ -230,7 +233,7 @@ Like git with `core.hooksPath`, a relative `gitflow.path.custom-hooks` is relati
 
 If you move or copy the repository, run `hook-it` again: it recognizes its own hooks folder from the previous location and keeps `gitflow.path.custom-hooks`.
 
-The git flow pre-commit hook runs the `pre-commit` of that folder after its own checks (see [Custom pre-commit hook](#custom-pre-commit-hook)). The other hooks of the folder run as before, and hooks added later to the folder (e.g., by a teammate) run as well, without running `hook-it` again.
+The git flow hooks run the hook of the same name of that folder after their own checks (see [Custom hooks](#custom-hooks)), e.g., `pre-commit` or `post-flow-release-start`. The other hooks of the folder run as before, and hooks added later to the folder (e.g., by a teammate) run as well, without running `hook-it` again.
 
 `hook-it` never overwrites a hook of the git flow hooks folder that is not ours (e.g., a ctags `post-checkout`): it displays a warning if the custom folder has a hook with the same name, as that hook will not run. Move the file away and run `hook-it` again.
 

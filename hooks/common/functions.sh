@@ -109,6 +109,57 @@ function get_config() { # {{{2
   return 0
 } # 2}}}
 
+# Tells if the path is absolute, including Windows paths with a drive letter (e.g.: C:/hooks with Git for Windows)
+function is_absolute_path() { # {{{2
+  [[ $1 == /* || $1 =~ ^[A-Za-z]:[/\\] ]]
+} # 2}}}
+
+# run_custom_hook runs the user's custom hook of the given name, if any, after ours. The first found wins:
+# - gitflow.path.<hook> (relative to the repository root),
+# - <hook> in gitflow.path.custom-hooks, the hooks folder (e.g.: .githooks) used before hook-it took over core.hooksPath,
+# - <hook>.local in the hooks folder
+#
+# The custom hook replaces the current process (its exit code and output become the hook's),
+# the function returns only when there is no custom hook to run
+#
+# Usage: run_custom_hook <hook> [arguments...]
+function run_custom_hook() { # {{{2
+  local hook=$1
+  local custom_hook custom_dir hint
+  shift
+  [[ -z $hook ]] && die "run_custom_hook: missing hook name"
+  custom_hook=$(git config --type=path --get "gitflow.path.$hook")
+  custom_dir=$(git config --type=path --get gitflow.path.custom-hooks)
+  [[ -n $custom_dir ]] && ! is_absolute_path "$custom_dir" && custom_dir="$ROOT_DIR/$custom_dir"
+  if [[ -n $custom_hook ]]; then
+    is_absolute_path "$custom_hook" || custom_hook="$ROOT_DIR/$custom_hook"
+    [[ -e $custom_hook ]] || die "The custom $hook hook $custom_hook (gitflow.path.$hook) does not exist"
+  elif [[ -n $custom_dir && -e $custom_dir/$hook ]]; then
+    custom_hook="$custom_dir/$hook"
+    if [[ ! -x $custom_hook ]]; then
+      # Like git, ignore the hooks that are not executable
+      warn "The custom $hook hook $custom_hook was ignored because it is not executable"
+      return 0
+    fi
+  else
+    custom_hook="$HOOKS_DIR/$hook.local"
+    [[ -e $custom_hook ]] || return 0
+    if [[ ! -x $custom_hook ]]; then
+      # Like git, ignore the hooks that are not executable (e.g.: a disabled pre-commit hook saved by hook-it)
+      warn "The custom $hook hook $custom_hook was ignored because it is not executable"
+      return 0
+    fi
+  fi
+  [[ -x $custom_hook ]] || die "The custom $hook hook $custom_hook is not executable, run: chmod +x $custom_hook"
+  # The custom hook cannot be a git flow hook (this one, through a symlink, or a copy), running it would loop forever
+  if [[ $custom_hook -ef $0 ]] || grep -Fq 'source "$HOOKS_DIR"/functions.sh' "$custom_hook" 2>/dev/null; then
+    [[ $hook == pre-commit ]] && hint=", where hook-it saves the pre-commit hook it replaces"
+    die "The custom $hook hook $custom_hook is a git flow hook, running it would loop. Point gitflow.path.$hook to your own hook (e.g.: $HOOKS_DIR/$hook.local$hint), or remove it"
+  fi
+  verbose "Running the custom $hook hook $custom_hook"
+  exec "$custom_hook" "$@"
+} # 2}}}
+
 # is_git_flow_next tells if the git flow in use is git-flow-next (and not git flow AVH)
 function is_git_flow_next() { # {{{2
   if [[ -z $GIT_FLOW_FLAVOR ]]; then

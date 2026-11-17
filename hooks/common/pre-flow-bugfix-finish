@@ -49,4 +49,5 @@ fi
 pull_branch "$ORIGIN" "${BASE_BRANCH:-$DEVELOP_BRANCH}"
 die_on_error "Failed to pull ${BASE_BRANCH:-$DEVELOP_BRANCH} from $ORIGIN"
 
+run_custom_hook pre-flow-bugfix-finish "$@"
 exit 0

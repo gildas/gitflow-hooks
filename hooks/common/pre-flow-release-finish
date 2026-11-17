@@ -51,4 +51,5 @@ die_on_error "Failed to pull $MASTER_BRANCH from $ORIGIN"
 pull_branch "$ORIGIN" "$DEVELOP_BRANCH"
 die_on_error "Failed to pull $DEVELOP_BRANCH from $ORIGIN"
 
+run_custom_hook pre-flow-release-finish "$@"
 exit 0
