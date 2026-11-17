@@ -267,22 +267,22 @@ function pull_branch() { # {{{2
   local status local_sha remote_sha worktree
 
   [[ -z $branch ]] && return 0
-  [[ -z $origin ]] && verbose "No remote, not pulling $branch" && return 0
+  [[ -z $origin ]] && { verbose "No remote, not pulling $branch"; return 0; }
 
   git ls-remote --exit-code --heads "$origin" "$branch" &>/dev/null
   status=$?
-  (( status == 2 )) && verbose "Branch $branch does not exist on $origin, not pulling it" && return 0
-  (( status ))      && error "Failed to reach $origin" && return $status
+  (( status == 2 )) && { verbose "Branch $branch does not exist on $origin, not pulling it"; return 0; }
+  (( status ))      && { error "Failed to reach $origin"; return $status; }
 
   verbose "Pulling $branch from $origin"
   git fetch --quiet "$origin" "+refs/heads/$branch:refs/remotes/$origin/$branch"
-  status=$? ; (( status )) && error "Failed to fetch $branch from $origin" && return $status
+  status=$? ; (( status )) && { error "Failed to fetch $branch from $origin"; return $status; }
   remote_sha=$(git rev-parse --verify --quiet "refs/remotes/$origin/$branch")
   local_sha=$(git rev-parse --verify --quiet "refs/heads/$branch")
 
   if [[ -z $local_sha ]]; then
     git branch --quiet --track "$branch" "$origin/$branch"
-    status=$? ; (( status )) && error "Failed to create $branch from $origin/$branch" && return $status
+    status=$? ; (( status )) && { error "Failed to create $branch from $origin/$branch"; return $status; }
     verbose "Created $branch from $origin/$branch"
     return 0
   fi
@@ -302,7 +302,7 @@ function pull_branch() { # {{{2
   else
     git update-ref -m "pull: fast-forward from $origin/$branch" "refs/heads/$branch" "$remote_sha" "$local_sha"
   fi
-  status=$? ; (( status )) && error "Failed to fast-forward $branch to $origin/$branch" && return $status
+  status=$? ; (( status )) && { error "Failed to fast-forward $branch to $origin/$branch"; return $status; }
   verbose "Fast-forwarded $branch to $origin/$branch"
   return 0
 } # 2}}}
@@ -488,11 +488,11 @@ function create_pull_request() { #{{{2
   local body=$5
   local status repo_type repo
   repo_type=$(get_repo_type $origin)
-  status=$? ; (( status )) && error "Unsupported remote URL for $origin: $(git config remote.${origin}.url)" && return $status
+  status=$? ; (( status )) && { error "Unsupported remote URL for $origin: $(git config remote.${origin}.url)"; return $status; }
   verbose "Creating a Pull Request on a $repo_type repository"
   repo=$(get_repo $origin)
-  status=$? ; (( status )) && error "Failed to retrieve the repository name" && return $status
-  [[ -z $repo ]] && error "Failed to retrieve repository name (empty)" && return 1
+  status=$? ; (( status )) && { error "Failed to retrieve the repository name"; return $status; }
+  [[ -z $repo ]] && { error "Failed to retrieve repository name (empty)"; return 1; }
 
   verbose "Creating a Pull Request on repository $repo from $source to $destination"
   case $repo_type in
