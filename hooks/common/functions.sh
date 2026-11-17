@@ -160,6 +160,45 @@ function run_custom_hook() { # {{{2
   exec "$custom_hook" "$@"
 } # 2}}}
 
+# find_stash prints the ref (e.g.: stash@{1}) of the gitflow-hooks-<name> stash, if any
+#
+# Usage: find_stash <name>
+function find_stash() { # {{{2
+  git stash list --format='%gd %s' | awk -v message="gitflow-hooks-$1" '$NF == message { print $1; exit }'
+} # 2}}}
+
+# push_stash stashes the given files in the gitflow-hooks-<name> stash
+#
+# Usage: push_stash <name> <file>...
+function push_stash() { # {{{2
+  local name=$1
+  shift
+  git stash push --quiet --message "gitflow-hooks-$name" -- "$@"
+} # 2}}}
+
+# pop_stash pops the gitflow-hooks-<name> stash, fails if there is none or it cannot be popped
+#
+# Usage: pop_stash <name>
+function pop_stash() { # {{{2
+  local ref
+  ref=$(find_stash "$1")
+  [[ -n $ref ]] || return 1
+  git stash pop --quiet "$ref"
+} # 2}}}
+
+# drop_stashes drops all the gitflow-hooks-<name> stashes of the given names
+#
+# Usage: drop_stashes <name>...
+function drop_stashes() { # {{{2
+  local name ref
+  for name in "$@"; do
+    while ref=$(find_stash "$name") && [[ -n $ref ]]; do
+      verbose "Dropping the stash $ref (gitflow-hooks-$name)"
+      git stash drop --quiet "$ref" || return
+    done
+  done
+} # 2}}}
+
 # is_git_flow_next tells if the git flow in use is git-flow-next (and not git flow AVH)
 function is_git_flow_next() { # {{{2
   if [[ -z $GIT_FLOW_FLAVOR ]]; then

@@ -33,14 +33,21 @@ source "$HOOKS_DIR"/functions.sh
 source "$HOOKS_DIR"/functions-lang.sh
 
 trace "Hook: post-flow-hotfix-start"
+
+if (( ${EXIT_CODE:-0} )); then
+  verbose "git flow failed to start the hotfix (exit code: $EXIT_CODE), dropping the stashed version bumps"
+  drop_stashes appveyor chart
+  exit 0
+fi
+
 verbose "We are now in branch ${ORIGIN:+$ORIGIN/}$BRANCH based on $BASE and the new version is $VERSION"
 
 if get_config_bool gitflow.bump-chart true; then
   CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
   if [[ -f $CHART_DIR/Chart.yaml ]]; then
-    stash=$(git stash list | awk '/chart/{gsub(":","",$1); print $1}')
-    if [[ -n $stash ]]; then
-      git stash pop --quiet
+    if [[ -n $(find_stash chart) ]]; then
+      pop_stash chart
+      die_on_error "Failed to restore $CHART_DIR/Chart.yaml from the stash gitflow-hooks-chart"
       git add "$CHART_DIR/Chart.yaml"
       die_on_error "Failed to stage $CHART_DIR/Chart.yaml"
       CHART_VERSION=$(get_chart_version "$CHART_DIR/Chart.yaml")
@@ -52,9 +59,9 @@ fi
 
 if get_config_bool gitflow.bump-appveyor true; then
   if [[ -f appveyor.yml ]]; then
-    stash=$(git stash list | awk '/appveyor/{gsub(":","",$1); print $1}')
-    if [[ -n $stash ]]; then
-      git stash pop --quiet $stash
+    if [[ -n $(find_stash appveyor) ]]; then
+      pop_stash appveyor
+      die_on_error "Failed to restore appveyor.yml from the stash gitflow-hooks-appveyor"
       git add appveyor.yml
       die_on_error "Failed to stage appveyor.yml"
       git commit -m "Updated Appveyor version" appveyor.yml
