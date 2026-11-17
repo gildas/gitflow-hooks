@@ -54,13 +54,17 @@ function lint_staged_files() { # {{{2
   local packages=( $(for file in "${files[@]}"; do printf "./%s\n" "$(dirname "$file")"; done | sort -u) )
 
   if command -v golangci-lint &>/dev/null; then
-    local options=() patch
+    local options=() patch base
     if get_config_bool gitflow.lint-new-issues-only false; then
       # The packages are still analyzed as a whole (Go type-checks packages, not files),
       # but only the issues on the staged lines are reported, the existing ones do not block the commit
       patch=$(mktemp)
+      # golangci-lint reads the working tree, so the patch must carry its line numbers, not the index's:
+      # in a partially staged file, the unstaged lines would shift the staged issues out of an index patch.
+      # The unstaged changes of the staged files are reported as well, which can only be stricter.
+      base=$(git rev-parse --verify --quiet HEAD || git hash-object -t tree /dev/null) # no HEAD on the first commit
       # Explicit prefixes, as golangci-lint expects them (diff.noprefix or diff.mnemonicPrefix would change them)
-      git diff --cached --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ -- '*.go' > "$patch"
+      git diff --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ "$base" -- "${files[@]}" > "$patch"
       options=(--new-from-patch="$patch")
       verbose "Reporting only the issues on the staged lines (gitflow.lint-new-issues-only)"
     fi

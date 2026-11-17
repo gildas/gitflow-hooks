@@ -141,7 +141,7 @@ In Go, the linters check the packages of the staged files as a whole (Go type-ch
 git config --bool gitflow.lint-new-issues-only true
 ```
 
-golangci-lint still analyzes the whole packages, but only reports the issues on the lines of `git diff --cached`. An issue your change causes on a line you did not touch (e.g., a function that becomes unused) does not block the commit anymore, keep a full lint in your CI. staticcheck cannot do this, it still reports all the issues of the packages, with a warning.
+golangci-lint still analyzes the whole packages, but only reports the issues on the lines of the staged Go files that changed since the last commit (as golangci-lint reads the working tree, this includes their unstaged changes). An issue your change causes on a line you did not touch (e.g., a function that becomes unused) does not block the commit anymore, keep a full lint in your CI. staticcheck cannot do this, it still reports all the issues of the packages, with a warning.
 
 The hooks will also:
 
