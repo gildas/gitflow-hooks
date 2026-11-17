@@ -513,9 +513,10 @@ function create_pull_request() { #{{{2
       ;;
     bitbucket)
       if command -v bb &>/dev/null; then
-        local profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
-        status=$? ; (( status )) && error "Failed to find the current bitbucket profile" && return $status
-        [[ -z $profile ]] && error "Failed to find the current bitbucket profile, please add it to your .git/config" && return 1
+        local profile
+        profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
+        status=$? ; (( status )) && { error "Failed to find the current bitbucket profile"; return $status; }
+        [[ -z $profile ]] && { error "Failed to find the current bitbucket profile, please add it to your .git/config"; return 1; }
         bb ${profile:+--profile $profile} pr create \
           --title       "$title" \
           --description "$body" \
@@ -555,13 +556,14 @@ function create_pull_request() { #{{{2
 function get_pull_request_state() { # {{{2
   local origin=$1
   local branch=$2
-  local status
-  local repo_type=$(get_repo_type $origin)
+  local status repo_type
+  repo_type=$(get_repo_type $origin)
   status=$? ; (( status )) && return $status
   verbose "Getting Pull Request status on a $repo_type repository"
-  local repo=$(get_repo $origin)
-  status=$? ; (( status )) && error "Failed to retrieve the repository name" && return $status
-  [[ -z $repo ]] && error "Failed to retrieve repository name (empty)" && return 1
+  local repo
+  repo=$(get_repo $origin)
+  status=$? ; (( status )) && { error "Failed to retrieve the repository name"; return $status; }
+  [[ -z $repo ]] && { error "Failed to retrieve repository name (empty)"; return 1; }
   local state
 
   verbose "Getting Pull Request status on repository $repo from $origin on branch $branch"
@@ -573,9 +575,10 @@ function get_pull_request_state() { # {{{2
       ;;
     bitbucket)
       if command -v bb &>/dev/null; then
-        local profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
-        status=$? ; (( status )) && error "Failed to find the current bitbucket profile" && return $status
-        [[ -z $profile ]] && error "Failed to find the current bitbucket profile, please add it to your .git/config" && return 1
+        local profile
+        profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
+        status=$? ; (( status )) && { error "Failed to find the current bitbucket profile"; return $status; }
+        [[ -z $profile ]] && { error "Failed to find the current bitbucket profile, please add it to your .git/config"; return 1; }
         verbose "Using Bitbucket profile: $profile"
         state=$( \
           bb ${profile:+--profile $profile} pr list --repository "$repo" --state all --output json |\
