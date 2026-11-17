@@ -34,6 +34,7 @@ verbose "Publishing hotfix $VERSION to ${ORIGIN:+${ORIGIN}/}$BRANCH"
 
 if ! get_config_bool gitflow.use-pull-request true; then
   verbose "Pull requests are disabled. Skipping Pull Request creation."
+  run_custom_hook post-flow-hotfix-publish "$@"
   exit 0
 fi
 
@@ -52,4 +53,5 @@ create_pull_request \
   "$BODY"
 die_on_error "Failed to create a Pull Request"
 
+run_custom_hook post-flow-hotfix-publish "$@"
 exit 0

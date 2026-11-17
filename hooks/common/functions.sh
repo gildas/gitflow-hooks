@@ -109,6 +109,114 @@ function get_config() { # {{{2
   return 0
 } # 2}}}
 
+# Tells if the path is absolute, including Windows paths with a drive letter (e.g.: C:/hooks with Git for Windows)
+function is_absolute_path() { # {{{2
+  [[ $1 == /* || $1 =~ ^[A-Za-z]:[/\\] ]]
+} # 2}}}
+
+# run_custom_hook runs the user's custom hook of the given name, if any, after ours. The first found wins:
+# - gitflow.path.<hook> (relative to the repository root),
+# - <hook> in gitflow.path.custom-hooks, the hooks folder (e.g.: .githooks) used before hook-it took over core.hooksPath,
+# - <hook>.local in the hooks folder
+#
+# The custom hook replaces the current process (its exit code and output become the hook's),
+# the function returns only when there is no custom hook to run
+#
+# Usage: run_custom_hook <hook> [arguments...]
+function run_custom_hook() { # {{{2
+  local hook=$1
+  local custom_hook custom_dir hint
+  shift
+  [[ -z $hook ]] && die "run_custom_hook: missing hook name"
+  custom_hook=$(git config --type=path --get "gitflow.path.$hook")
+  custom_dir=$(git config --type=path --get gitflow.path.custom-hooks)
+  [[ -n $custom_dir ]] && ! is_absolute_path "$custom_dir" && custom_dir="$ROOT_DIR/$custom_dir"
+  if [[ -n $custom_hook ]]; then
+    is_absolute_path "$custom_hook" || custom_hook="$ROOT_DIR/$custom_hook"
+    [[ -e $custom_hook ]] || die "The custom $hook hook $custom_hook (gitflow.path.$hook) does not exist"
+  elif [[ -n $custom_dir && -e $custom_dir/$hook ]]; then
+    custom_hook="$custom_dir/$hook"
+    if [[ ! -x $custom_hook ]]; then
+      # Like git, ignore the hooks that are not executable
+      warn "The custom $hook hook $custom_hook was ignored because it is not executable"
+      return 0
+    fi
+  else
+    custom_hook="$HOOKS_DIR/$hook.local"
+    [[ -e $custom_hook ]] || return 0
+    if [[ ! -x $custom_hook ]]; then
+      # Like git, ignore the hooks that are not executable (e.g.: a disabled pre-commit hook saved by hook-it)
+      warn "The custom $hook hook $custom_hook was ignored because it is not executable"
+      return 0
+    fi
+  fi
+  [[ -x $custom_hook ]] || die "The custom $hook hook $custom_hook is not executable, run: chmod +x $custom_hook"
+  # The custom hook cannot be a git flow hook (this one, through a symlink, or a copy), running it would loop forever
+  if [[ $custom_hook -ef $0 ]] || grep -Fq 'source "$HOOKS_DIR"/functions.sh' "$custom_hook" 2>/dev/null; then
+    [[ $hook == pre-commit ]] && hint=", where hook-it saves the pre-commit hook it replaces"
+    die "The custom $hook hook $custom_hook is a git flow hook, running it would loop. Point gitflow.path.$hook to your own hook (e.g.: $HOOKS_DIR/$hook.local$hint), or remove it"
+  fi
+  verbose "Running the custom $hook hook $custom_hook"
+  exec "$custom_hook" "$@"
+} # 2}}}
+
+# The stashes are named gitflow-hooks-<name>@<worktree id>: refs/stash is shared by all the worktrees of a repository,
+# a worktree must only see its own stashes. The filter only stashes files without local changes (see has_local_changes),
+# so a stash only carries the version bump of the hook, which can be dropped without losing any work.
+
+# stash_message prints the message of the gitflow-hooks-<name> stash of the current worktree
+#
+# Usage: stash_message <name>
+function stash_message() { # {{{2
+  printf 'gitflow-hooks-%s@%s' "$1" "$(printf '%s' "$ROOT_DIR" | git hash-object --stdin | cut -c1-12)"
+} # 2}}}
+
+# find_stash prints the ref (e.g.: stash@{1}) of the gitflow-hooks-<name> stash of the current worktree, if any
+#
+# Usage: find_stash <name>
+function find_stash() { # {{{2
+  git stash list --format='%gd %s' | awk -v message="$(stash_message "$1")" '$NF == message { print $1; exit }'
+} # 2}}}
+
+# push_stash stashes the given files in the gitflow-hooks-<name> stash of the current worktree
+#
+# Usage: push_stash <name> <file>...
+function push_stash() { # {{{2
+  local name=$1
+  shift
+  git stash push --quiet --message "$(stash_message "$name")" -- "$@"
+} # 2}}}
+
+# pop_stash pops the gitflow-hooks-<name> stash of the current worktree, fails if there is none or it cannot be popped
+#
+# Usage: pop_stash <name>
+function pop_stash() { # {{{2
+  local ref
+  ref=$(find_stash "$1")
+  [[ -n $ref ]] || return 1
+  git stash pop --quiet "$ref"
+} # 2}}}
+
+# drop_stashes drops the gitflow-hooks-<name> stashes of the current worktree for the given names
+#
+# Usage: drop_stashes <name>...
+function drop_stashes() { # {{{2
+  local name ref
+  for name in "$@"; do
+    while ref=$(find_stash "$name") && [[ -n $ref ]]; do
+      verbose "Dropping the stash $ref ($(stash_message "$name"))"
+      git stash drop --quiet "$ref" || return
+    done
+  done
+} # 2}}}
+
+# has_local_changes tells if the given file has staged or unstaged changes
+#
+# Usage: has_local_changes <file>
+function has_local_changes() { # {{{2
+  [[ -n $(git status --porcelain -- "$1") ]]
+} # 2}}}
+
 # is_git_flow_next tells if the git flow in use is git-flow-next (and not git flow AVH)
 function is_git_flow_next() { # {{{2
   if [[ -z $GIT_FLOW_FLAVOR ]]; then
@@ -155,6 +263,66 @@ function get_develop_branch() { # {{{2
   else
     git config --get gitflow.branch.develop
   fi
+} # 2}}}
+
+# get_branch_worktree prints the worktree where the given branch is checked out (empty when it is not)
+function get_branch_worktree() { # {{{2
+  local branch=$1
+  git worktree list --porcelain | awk -v ref="refs/heads/$branch" '
+    /^worktree / { worktree = substr($0, 10) }
+    $1 == "branch" && $2 == ref { print worktree; exit }
+  '
+} # 2}}}
+
+# pull_branch fast-forwards the given local branch to its remote, so git flow merges into an up-to-date branch
+#
+# Works whether the branch is checked out (in this worktree or another one) or not.
+# A local branch that is ahead of its remote is left alone, a diverged one is an error.
+# Nothing happens when there is no remote, or when the remote does not have the branch.
+function pull_branch() { # {{{2
+  local origin=$1
+  local branch=$2
+  local status local_sha remote_sha worktree
+
+  [[ -z $branch ]] && return 0
+  [[ -z $origin ]] && { verbose "No remote, not pulling $branch"; return 0; }
+
+  git ls-remote --exit-code --heads "$origin" "$branch" &>/dev/null
+  status=$?
+  (( status == 2 )) && { verbose "Branch $branch does not exist on $origin, not pulling it"; return 0; }
+  (( status ))      && { error "Failed to reach $origin"; return $status; }
+
+  verbose "Pulling $branch from $origin"
+  git fetch --quiet "$origin" "+refs/heads/$branch:refs/remotes/$origin/$branch"
+  status=$? ; (( status )) && { error "Failed to fetch $branch from $origin"; return $status; }
+  remote_sha=$(git rev-parse --verify --quiet "refs/remotes/$origin/$branch")
+  local_sha=$(git rev-parse --verify --quiet "refs/heads/$branch")
+
+  if [[ -z $local_sha ]]; then
+    git branch --quiet --track "$branch" "$origin/$branch"
+    status=$? ; (( status )) && { error "Failed to create $branch from $origin/$branch"; return $status; }
+    verbose "Created $branch from $origin/$branch"
+    return 0
+  fi
+  if git merge-base --is-ancestor "$remote_sha" "$local_sha"; then
+    verbose "Branch $branch is up to date with $origin/$branch"
+    return 0
+  fi
+  if ! git merge-base --is-ancestor "$local_sha" "$remote_sha"; then
+    error "Branch $branch has diverged from $origin/$branch, please reconcile them first"
+    return 1
+  fi
+
+  worktree=$(get_branch_worktree "$branch")
+  if [[ -n $worktree ]]; then
+    # The branch is checked out, its files must follow
+    git -C "$worktree" merge --ff-only --quiet "refs/remotes/$origin/$branch"
+  else
+    git update-ref -m "pull: fast-forward from $origin/$branch" "refs/heads/$branch" "$remote_sha" "$local_sha"
+  fi
+  status=$? ; (( status )) && { error "Failed to fast-forward $branch to $origin/$branch"; return $status; }
+  verbose "Fast-forwarded $branch to $origin/$branch"
+  return 0
 } # 2}}}
 
 # get_version_tag prints the prefix of the version tags (like v)
@@ -253,9 +421,33 @@ function update_appveyor_version() { # {{{2
   fi
 } # 2}}}
 
+# get_origin_url prints the URL of the given remote, with SSH host aliases (from ~/.ssh/config) resolved
+#
+# e.g.: git@bitbucket-genesys:genesyscsp/repo.git becomes git@ssh.bitbucket.org:genesyscsp/repo.git
+function get_origin_url() { # {{{2
+  local origin=$1
+  local url host path resolved
+
+  url=$(git config remote.${origin}.url)
+  [[ -z $url ]] && return 1
+  if [[ $url =~ ^ssh://([^@/]+@)?([^/:]+)(:[0-9]+)?/(.*)$ ]]; then
+    host=${BASH_REMATCH[2]}
+    path=${BASH_REMATCH[4]}
+  elif [[ ! $url =~ ^[a-zA-Z]+:// && $url =~ ^([^@/]+@)?([^/:]+):(.*)$ ]]; then
+    host=${BASH_REMATCH[2]}
+    path=${BASH_REMATCH[3]}
+  else
+    printf "%s" "$url"
+    return 0
+  fi
+  command -v ssh &>/dev/null && resolved=$(ssh -G "$host" 2>/dev/null | awk '$1 == "hostname" { print $2; exit }')
+  printf "git@%s:%s" "${resolved:-$host}" "$path"
+  return 0
+} # 2}}}
+
 function get_repo_type() { # {{{2
   local origin=$1
-  local origin_url=$(git config remote.${origin}.url)
+  local origin_url=$(get_origin_url $origin)
   local repo_type
 
   if [[ $origin_url =~ ^(ssh://)?git@github\.com ]]; then
@@ -279,7 +471,7 @@ function get_repo_type() { # {{{2
 
 function get_repo() { # {{{2
   local origin=$1
-  local origin_url=$(git config remote.${origin}.url)
+  local origin_url=$(get_origin_url $origin)
   local status=$? ; (( status )) && return $status
   local repo
 
@@ -312,13 +504,13 @@ function create_pull_request() { #{{{2
   local destination=$3
   local title=$4
   local body=$5
-  local status
-  local repo_type=$(get_repo_type $origin)
-  status=$? ; (( status )) && return $status
+  local status repo_type repo
+  repo_type=$(get_repo_type $origin)
+  status=$? ; (( status )) && { error "Unsupported remote URL for $origin: $(git config remote.${origin}.url)"; return $status; }
   verbose "Creating a Pull Request on a $repo_type repository"
-  local repo=$(get_repo $origin)
-  status=$? ; (( status )) && error "Failed to retrieve the repository name" && return $status
-  [[ -z $repo ]] && error "Failed to retrieve repository name (empty)" && return 1
+  repo=$(get_repo $origin)
+  status=$? ; (( status )) && { error "Failed to retrieve the repository name"; return $status; }
+  [[ -z $repo ]] && { error "Failed to retrieve repository name (empty)"; return 1; }
 
   verbose "Creating a Pull Request on repository $repo from $source to $destination"
   case $repo_type in
@@ -339,9 +531,10 @@ function create_pull_request() { #{{{2
       ;;
     bitbucket)
       if command -v bb &>/dev/null; then
-        local profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
-        status=$? ; (( status )) && error "Failed to find the current bitbucket profile" && return $status
-        [[ -z $profile ]] && error "Failed to find the current bitbucket profile, please add it to your .git/config" && return 1
+        local profile
+        profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
+        status=$? ; (( status )) && { error "Failed to find the current bitbucket profile"; return $status; }
+        [[ -z $profile ]] && { error "Failed to find the current bitbucket profile, please add it to your .git/config"; return 1; }
         bb ${profile:+--profile $profile} pr create \
           --title       "$title" \
           --description "$body" \
@@ -381,13 +574,14 @@ function create_pull_request() { #{{{2
 function get_pull_request_state() { # {{{2
   local origin=$1
   local branch=$2
-  local status
-  local repo_type=$(get_repo_type $origin)
+  local status repo_type
+  repo_type=$(get_repo_type $origin)
   status=$? ; (( status )) && return $status
   verbose "Getting Pull Request status on a $repo_type repository"
-  local repo=$(get_repo $origin)
-  status=$? ; (( status )) && error "Failed to retrieve the repository name" && return $status
-  [[ -z $repo ]] && error "Failed to retrieve repository name (empty)" && return 1
+  local repo
+  repo=$(get_repo $origin)
+  status=$? ; (( status )) && { error "Failed to retrieve the repository name"; return $status; }
+  [[ -z $repo ]] && { error "Failed to retrieve repository name (empty)"; return 1; }
   local state
 
   verbose "Getting Pull Request status on repository $repo from $origin on branch $branch"
@@ -399,9 +593,10 @@ function get_pull_request_state() { # {{{2
       ;;
     bitbucket)
       if command -v bb &>/dev/null; then
-        local profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
-        status=$? ; (( status )) && error "Failed to find the current bitbucket profile" && return $status
-        [[ -z $profile ]] && error "Failed to find the current bitbucket profile, please add it to your .git/config" && return 1
+        local profile
+        profile=$(bb profile which --output json | jq --raw-output --exit-status '.name')
+        status=$? ; (( status )) && { error "Failed to find the current bitbucket profile"; return $status; }
+        [[ -z $profile ]] && { error "Failed to find the current bitbucket profile, please add it to your .git/config"; return 1; }
         verbose "Using Bitbucket profile: $profile"
         state=$( \
           bb ${profile:+--profile $profile} pr list --repository "$repo" --state all --output json |\

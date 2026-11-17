@@ -46,15 +46,32 @@ if [[ ! $BUMP =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
 fi
 verbose "New Version: $VERSION"
 
+VERSION=$(run_custom_hook filter-flow-hotfix-start-version "$VERSION" "${@:2}" && printf '%s' "$VERSION")
+status=$?
+(( status )) && exit $status
+[[ -z $VERSION ]] && exit 0 # git flow stops, as there is no version
+
+# The bumped files are stashed (see push_stash), they must not carry local changes, which would be lost or committed with the bump
+CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
+if get_config_bool gitflow.bump-appveyor true && [[ -f appveyor.yml ]] && has_local_changes appveyor.yml; then
+  die "appveyor.yml has local changes, commit or stash them before starting the hotfix"
+fi
+if get_config_bool gitflow.bump-chart true && [[ -f $CHART_DIR/Chart.yaml ]] && has_local_changes "$CHART_DIR/Chart.yaml"; then
+  die "$CHART_DIR/Chart.yaml has local changes, commit or stash them before starting the hotfix"
+fi
+
+drop_stashes appveyor chart
+trap '(( $? )) && drop_stashes appveyor chart' EXIT
+
 if get_config_bool gitflow.bump-appveyor true; then
   if [[ -f appveyor.yml ]]; then
     update_appveyor_version appveyor.yml $VERSION
-    git stash push --message "appveyor" --quiet appveyor.yml
+    push_stash appveyor appveyor.yml
+    die_on_error "Failed to stash appveyor.yml"
   fi
 fi
 
 if get_config_bool gitflow.bump-chart true; then
-  CHART_DIR=$(get_config gitflow.path.chart "$ROOT_DIR/chart")
   if [[ -f $CHART_DIR/Chart.yaml ]]; then
     update_chart_appversion "$CHART_DIR/Chart.yaml" $VERSION
     if [[ ! $BUMP =~ [0-9]+\.[0-9]+\.[0-9]+ ]]; then
@@ -69,7 +86,8 @@ if get_config_bool gitflow.bump-chart true; then
     else
       warn "Helm Chart Version was not modified, BUMP=$BUMP"
     fi
-    git stash push --message "chart" --quiet "$CHART_DIR/Chart.yaml"
+    push_stash chart "$CHART_DIR/Chart.yaml"
+    die_on_error "Failed to stash $CHART_DIR/Chart.yaml"
   fi
 fi
 
