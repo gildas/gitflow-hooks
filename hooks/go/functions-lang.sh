@@ -54,11 +54,24 @@ function lint_staged_files() { # {{{2
   local packages=( $(for file in "${files[@]}"; do printf "./%s\n" "$(dirname "$file")"; done | sort -u) )
 
   if command -v golangci-lint &>/dev/null; then
+    local options=() patch
+    if get_config_bool gitflow.lint-new-issues-only false; then
+      # The packages are still analyzed as a whole (Go type-checks packages, not files),
+      # but only the issues on the staged lines are reported, the existing ones do not block the commit
+      patch=$(mktemp)
+      # Explicit prefixes, as golangci-lint expects them (diff.noprefix or diff.mnemonicPrefix would change them)
+      git diff --cached --no-color --no-ext-diff --src-prefix=a/ --dst-prefix=b/ -- '*.go' > "$patch"
+      options=(--new-from-patch="$patch")
+      verbose "Reporting only the issues on the staged lines (gitflow.lint-new-issues-only)"
+    fi
     verbose "Running golangci-lint on the following packages: ${packages[*]}"
-    golangci-lint run "${packages[@]}"
-    status=$? ; (( status )) && { (exit $status); return $(error "The golangci-lint tool found issues"); }
+    golangci-lint run "${options[@]}" "${packages[@]}"
+    status=$?
+    [[ -n $patch ]] && rm -f "$patch"
+    (( status )) && { (exit $status); return $(error "The golangci-lint tool found issues"); }
     success "The golangci-lint tool found no issues"
   elif command -v staticcheck &>/dev/null; then
+    get_config_bool gitflow.lint-new-issues-only false && warn "staticcheck cannot report only the new issues (gitflow.lint-new-issues-only), it reports all the issues of the staged packages"
     verbose "Running staticcheck on the following packages: ${packages[*]}"
     staticcheck "${packages[@]}"
     status=$? ; (( status )) && { (exit $status); return $(error "The staticcheck tool found issues"); }

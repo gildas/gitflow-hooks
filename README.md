@@ -135,6 +135,14 @@ git config --bool gitflow.must-pass-lint false
 git config --bool gitflow.use-pull-request false
 ```
 
+In Go, the linters check the packages of the staged files as a whole (Go type-checks packages, not single files), so the issues already in the other files of these packages block the commit as well. In a repository with existing lint issues, you can report only the issues on the staged lines:
+
+```bash
+git config --bool gitflow.lint-new-issues-only true
+```
+
+golangci-lint still analyzes the whole packages, but only reports the issues on the lines of `git diff --cached`. An issue your change causes on a line you did not touch (e.g., a function that becomes unused) does not block the commit anymore, keep a full lint in your CI. staticcheck cannot do this, it still reports all the issues of the packages, with a warning.
+
 The hooks will also:
 
 - format the code with [gofmt](https://pkg.go.dev/cmd/gofmt) for [Go](https://go.dev) changes, with [rustfmt](https://github.com/rust-lang/rustfmt) for [Rust](https://www.rust-lang.org) changes (skipped if rustfmt is not installed), and with the project's [Prettier](https://prettier.io) for [Node.js](https://nodejs.org) and [Salesforce](https://developer.salesforce.com) changes (skipped if Prettier is not installed)
